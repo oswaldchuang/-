@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Equipment, EquipmentStatus } from '../types';
+import { Equipment, EquipmentStatus } from '../types.ts';
 
 interface Props {
   item: Equipment;

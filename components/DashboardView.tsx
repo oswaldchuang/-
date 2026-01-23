@@ -1,6 +1,6 @@
 
 import React from 'react';
-import { Studio, EquipmentStatus } from '../types';
+import { Studio, EquipmentStatus } from '../types.ts';
 
 interface Props {
   studios: Studio[];

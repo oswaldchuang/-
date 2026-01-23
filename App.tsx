@@ -1,9 +1,9 @@
 
 import React, { useState, useEffect } from 'react';
-import { Studio, EquipmentStatus } from './types';
-import { INITIAL_STUDIOS } from './constants';
-import DashboardView from './components/DashboardView';
-import StudioDetailView from './components/StudioDetailView';
+import { Studio, EquipmentStatus } from './types.ts';
+import { INITIAL_STUDIOS } from './constants.ts';
+import DashboardView from './components/DashboardView.tsx';
+import StudioDetailView from './components/StudioDetailView.tsx';
 
 const App: React.FC = () => {
   const [studios, setStudios] = useState<Studio[]>([]);

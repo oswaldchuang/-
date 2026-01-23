@@ -1,7 +1,7 @@
 
 import React, { useState } from 'react';
-import { Studio, Equipment, EquipmentStatus, EquipmentCategory } from '../types';
-import EquipmentRow from './EquipmentRow';
+import { Studio, Equipment, EquipmentStatus, EquipmentCategory } from '../types.ts';
+import EquipmentRow from './EquipmentRow.tsx';
 
 interface Props {
   studio: Studio;

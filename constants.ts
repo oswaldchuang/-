@@ -1,5 +1,5 @@
 
-import { Studio, EquipmentStatus, Equipment } from './types';
+import { Studio, EquipmentStatus, Equipment } from './types.ts';
 
 const generateEquipmentList = (): Equipment[] => [
   // 相機組
