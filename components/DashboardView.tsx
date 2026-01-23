@@ -5,9 +5,10 @@ import { Studio, EquipmentStatus } from '../types.ts';
 interface Props {
   studios: Studio[];
   onSelectStudio: (id: string) => void;
+  onShowDefective: () => void;
 }
 
-const DashboardView: React.FC<Props> = ({ studios, onSelectStudio }) => {
+const DashboardView: React.FC<Props> = ({ studios, onSelectStudio, onShowDefective }) => {
   return (
     <div className="flex-1 overflow-y-auto px-5 pt-12 pb-20">
       <header className="mb-8">
@@ -58,17 +59,35 @@ const DashboardView: React.FC<Props> = ({ studios, onSelectStudio }) => {
         })}
       </div>
 
-      <div className="mt-8 ios-card p-6 bg-blue-600 text-white">
-        <h3 className="text-lg font-bold mb-1">今日統計</h3>
-        <p className="opacity-90 text-sm mb-4">所有攝影棚狀態監控</p>
+      <div 
+        onClick={onShowDefective}
+        className="mt-8 ios-card p-6 bg-blue-600 text-white ios-tap cursor-pointer relative overflow-hidden group"
+      >
+        {/* Background Decoration */}
+        <div className="absolute top-0 right-0 -mr-8 -mt-8 w-32 h-32 bg-white/10 rounded-full blur-2xl group-active:scale-150 transition-transform"></div>
+        
+        <div className="flex justify-between items-start mb-1">
+          <div>
+            <h3 className="text-lg font-bold">今日統計</h3>
+            <p className="opacity-90 text-sm mb-4">點擊查看所有待修器材</p>
+          </div>
+          <div className="bg-white/20 p-2 rounded-full">
+            <svg className="w-5 h-5 text-white" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 7l5 5m0 0l-5 5m5-5H6" />
+            </svg>
+          </div>
+        </div>
+
         <div className="grid grid-cols-2 gap-4">
-          <div className="bg-white/10 p-3 rounded-xl">
+          <div className="bg-white/10 p-3 rounded-xl border border-white/10">
             <p className="text-xs opacity-70">器材總數</p>
             <p className="text-2xl font-bold">{studios.reduce((acc, s) => acc + s.equipment.length, 0)}</p>
           </div>
-          <div className="bg-white/10 p-3 rounded-xl">
-            <p className="text-xs opacity-70">需維護</p>
-            <p className="text-2xl font-bold">{studios.reduce((acc, s) => acc + s.equipment.filter(e => e.status !== EquipmentStatus.NORMAL).length, 0)}</p>
+          <div className="bg-white/10 p-3 rounded-xl border border-white/10">
+            <p className="text-xs opacity-70">需維修/異常</p>
+            <p className="text-2xl font-bold text-orange-300">
+              {studios.reduce((acc, s) => acc + s.equipment.filter(e => e.status !== EquipmentStatus.NORMAL).length, 0)}
+            </p>
           </div>
         </div>
       </div>

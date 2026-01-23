@@ -2,8 +2,12 @@
 export enum EquipmentStatus {
   NORMAL = '正常',
   DAMAGED = '損壞',
-  MISSING = '遺失',
-  MAINTENANCE = '維修中'
+  MISSING = '遺失'
+}
+
+export enum LabelStatus {
+  LABELED = '已貼',
+  UNLABELED = '未貼'
 }
 
 export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收音組' | '線材組';
@@ -12,12 +16,26 @@ export interface Equipment {
   id: string;
   name: string;
   category: EquipmentCategory;
-  subCategory?: string; // e.g. "鏡頭", "配件"
+  subCategory?: string;
   quantity: number;
   unit: string;
   status: EquipmentStatus;
+  labelStatus: LabelStatus;
   remark: string;
   lastChecked?: string;
+  lastCheckedBy?: string; // New field
+}
+
+export interface HistoryRecord {
+  id: string;
+  equipmentId: string;
+  equipmentName: string;
+  studioName: string;
+  studioIcon: string;
+  fixedAt: string;
+  fixedBy: string; // New field
+  previousStatus: EquipmentStatus;
+  remark: string;
 }
 
 export interface Studio {
@@ -28,4 +46,4 @@ export interface Studio {
   icon: string;
 }
 
-export type ViewType = 'dashboard' | 'studioDetail' | 'categoryDetail';
+export type ViewType = 'dashboard' | 'studioDetail' | 'defectiveItems';

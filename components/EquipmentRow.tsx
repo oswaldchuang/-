@@ -1,6 +1,6 @@
 
 import React, { useState } from 'react';
-import { Equipment, EquipmentStatus } from '../types.ts';
+import { Equipment, EquipmentStatus, LabelStatus } from '../types.ts';
 
 interface Props {
   item: Equipment;
@@ -15,9 +15,14 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdate }) => {
       case EquipmentStatus.NORMAL: return 'bg-green-100 text-green-700';
       case EquipmentStatus.DAMAGED: return 'bg-red-100 text-red-700';
       case EquipmentStatus.MISSING: return 'bg-orange-100 text-orange-700';
-      case EquipmentStatus.MAINTENANCE: return 'bg-blue-100 text-blue-700';
       default: return 'bg-gray-100 text-gray-700';
     }
+  };
+
+  const getLabelColor = (status: LabelStatus) => {
+    return status === LabelStatus.LABELED 
+      ? 'bg-blue-100 text-blue-700' 
+      : 'bg-gray-100 text-gray-400';
   };
 
   return (
@@ -27,11 +32,16 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdate }) => {
         onClick={() => setIsExpanded(!isExpanded)}
       >
         <div className="flex-1">
-          <div className="flex items-center space-x-2">
+          <div className="flex items-center space-x-2 flex-wrap gap-y-1">
             <span className="font-bold text-gray-800">{item.name}</span>
-            <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${getStatusColor(item.status)}`}>
-              {item.status}
-            </span>
+            <div className="flex space-x-1">
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${getStatusColor(item.status)}`}>
+                {item.status}
+              </span>
+              <span className={`text-[10px] px-2 py-0.5 rounded-full font-semibold ${getLabelColor(item.labelStatus)}`}>
+                {item.labelStatus}
+              </span>
+            </div>
           </div>
           <div className="flex items-center text-xs text-gray-500 mt-1 space-x-2">
             <span>{item.category}</span>
@@ -55,18 +65,37 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdate }) => {
         <div className="px-4 pb-4 pt-2 border-t border-gray-50 bg-gray-50/50">
           <div className="mb-4">
             <label className="block text-xs font-bold text-gray-400 uppercase mb-2">更新狀態</label>
-            <div className="grid grid-cols-2 gap-2">
+            <div className="grid grid-cols-3 gap-2">
               {Object.values(EquipmentStatus).map(status => (
                 <button
                   key={status}
                   onClick={() => onUpdate({ status })}
-                  className={`py-2 px-3 rounded-lg text-sm font-medium ios-tap transition-colors ${
+                  className={`py-2 px-1 rounded-lg text-xs font-medium ios-tap transition-colors ${
                     item.status === status 
                       ? 'bg-blue-600 text-white border-transparent' 
                       : 'bg-white border border-gray-200 text-gray-600'
                   }`}
                 >
                   {status}
+                </button>
+              ))}
+            </div>
+          </div>
+
+          <div className="mb-4">
+            <label className="block text-xs font-bold text-gray-400 uppercase mb-2">標籤狀態</label>
+            <div className="grid grid-cols-2 gap-2">
+              {Object.values(LabelStatus).map(lStatus => (
+                <button
+                  key={lStatus}
+                  onClick={() => onUpdate({ labelStatus: lStatus })}
+                  className={`py-2 px-3 rounded-lg text-sm font-medium ios-tap transition-colors ${
+                    item.labelStatus === lStatus 
+                      ? 'bg-indigo-600 text-white border-transparent' 
+                      : 'bg-white border border-gray-200 text-gray-600'
+                  }`}
+                >
+                  {lStatus}
                 </button>
               ))}
             </div>
@@ -82,9 +111,16 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdate }) => {
             />
           </div>
 
-          <div className="mt-3 text-[10px] text-gray-400 flex justify-between">
-            <span>ID: {item.id}</span>
-            <span>上次清點: {item.lastChecked ? new Date(item.lastChecked).toLocaleString() : '尚未清點'}</span>
+          <div className="mt-3 text-[10px] text-gray-400 flex justify-between items-center">
+            <div className="flex flex-col">
+              <span>ID: {item.id}</span>
+              <span>清點人: <span className="text-gray-600 font-bold">{item.lastCheckedBy || '尚未記錄'}</span></span>
+            </div>
+            <div className="text-right">
+              <span>最後清點:</span>
+              <br />
+              <span>{item.lastChecked ? new Date(item.lastChecked).toLocaleString() : '尚未清點'}</span>
+            </div>
           </div>
         </div>
       )}
