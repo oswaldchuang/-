@@ -1,6 +1,6 @@
 
-import React, { useState } from 'react';
-import { Studio, EquipmentStatus, Equipment, HistoryRecord, EquipmentUnit } from '../types.ts';
+import React, { useState, useRef } from 'react';
+import { Studio, EquipmentStatus, Equipment, HistoryRecord, EquipmentUnit, EquipmentCategory } from '../types.ts';
 import { PERSONNEL_LIST } from '../constants.ts';
 import EquipmentRow from './EquipmentRow.tsx';
 
@@ -12,8 +12,11 @@ interface Props {
 }
 
 const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdateEquipmentUnit }) => {
-  const [activeTab, setActiveTab] = useState<'pending' | 'history'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'history' | 'overview'>('pending');
   const [maintenancePersonnel, setMaintenancePersonnel] = useState<string>(PERSONNEL_LIST[0]);
+  const overviewRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
+
+  const categories: EquipmentCategory[] = ['相機組', '腳架組', '圖傳Monitor', '燈光組', '收音組', '線材電池組'];
 
   // Grouping logic: Get studios and their specific defective equipment
   const studiosWithIssues = studios.map(studio => ({
@@ -28,30 +31,47 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
     }, 0);
   }, 0);
 
+  const scrollToStudio = (id: string) => {
+    overviewRefs.current[id]?.scrollIntoView({ behavior: 'smooth', block: 'start' });
+  };
+
+  const getStatusSummary = (units: EquipmentUnit[]) => {
+    const normal = units.filter(u => u.status === EquipmentStatus.NORMAL).length;
+    const damaged = units.filter(u => u.status === EquipmentStatus.DAMAGED).length;
+    const missing = units.filter(u => u.status === EquipmentStatus.MISSING).length;
+    return { normal, damaged, missing, total: units.length };
+  };
+
   return (
     <div className="flex-1 flex flex-col h-full bg-[#F2F2F7]">
-      <div className="ios-blur sticky top-0 z-10 px-4 pt-10 pb-4 border-b border-gray-200">
+      <div className="ios-blur sticky top-0 z-20 px-4 pt-10 pb-4 border-b border-gray-200">
         <div className="flex items-center space-x-3 mb-4">
           <button onClick={onBack} className="text-blue-500 ios-tap p-1">
             <svg className="w-6 h-6" fill="none" stroke="currentColor" viewBox="0 0 24 24">
               <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
             </svg>
           </button>
-          <h1 className="text-xl font-bold">維修中心</h1>
+          <h1 className="text-xl font-bold">資產維護中心</h1>
         </div>
 
-        <div className="bg-gray-200/50 p-0.5 rounded-lg flex relative mb-3">
+        <div className="bg-gray-200/50 p-0.5 rounded-lg flex relative mb-3 overflow-hidden">
           <button 
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all duration-200 z-10 ${activeTab === 'pending' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'pending' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
           >
             待處理 ({totalIssueCount})
           </button>
           <button 
             onClick={() => setActiveTab('history')}
-            className={`flex-1 py-1.5 text-sm font-medium rounded-md transition-all duration-200 z-10 ${activeTab === 'history' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'history' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
           >
             已修復 ({history.length})
+          </button>
+          <button 
+            onClick={() => setActiveTab('overview')}
+            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'overview' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+          >
+            器材總覽
           </button>
         </div>
 
@@ -67,10 +87,24 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
             </select>
           </div>
         )}
+
+        {activeTab === 'overview' && (
+          <div className="flex space-x-2 overflow-x-auto no-scrollbar py-1">
+            {studios.map(s => (
+              <button 
+                key={s.id} 
+                onClick={() => scrollToStudio(s.id)}
+                className="shrink-0 text-[10px] font-bold px-3 py-1 bg-white rounded-full shadow-sm border border-gray-100 text-gray-600 active:scale-95 transition-transform"
+              >
+                {s.name}
+              </button>
+            ))}
+          </div>
+        )}
       </div>
 
       <div className="flex-1 overflow-y-auto p-4">
-        {activeTab === 'pending' ? (
+        {activeTab === 'pending' && (
           studiosWithIssues.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-4xl shadow-inner">
@@ -89,7 +123,6 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                       <h2 className="text-lg font-bold text-gray-800">{studio.name}</h2>
                     </div>
                   </div>
-                  
                   <div className="space-y-4">
                     {studio.defectiveItems.map((item) => (
                       <EquipmentRow 
@@ -103,7 +136,9 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
               ))}
             </div>
           )
-        ) : (
+        )}
+
+        {activeTab === 'history' && (
           history.length === 0 ? (
             <div className="flex flex-col items-center justify-center py-20 text-gray-400">
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-4xl">📜</div>
@@ -120,9 +155,7 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                     </div>
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-green-500 text-white font-black uppercase">Fixed</span>
                   </div>
-                  
                   <h4 className="font-bold text-gray-800">{record.equipmentName} - <span className="text-blue-600">{record.unitIndex} 號機</span></h4>
-                  
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <div className="bg-gray-50 p-2 rounded-xl">
                       <p className="text-[9px] text-gray-400 uppercase font-black">損壞狀況</p>
@@ -137,13 +170,11 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                       <p className="text-xs text-gray-600 font-bold">{new Date(record.fixedAt).toLocaleDateString()}</p>
                     </div>
                   </div>
-
                   {record.remark && (
                     <div className="mt-2 text-xs text-gray-500 bg-white/50 border border-gray-100 p-2 rounded-xl italic">
                       「{record.remark}」
                     </div>
                   )}
-                  
                   <div className="mt-3 pt-3 border-t border-gray-50 text-[9px] text-gray-300 flex justify-between">
                     <span>#{record.id}</span>
                     <span>{new Date(record.fixedAt).toLocaleTimeString()}</span>
@@ -152,6 +183,84 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
               ))}
             </div>
           )
+        )}
+
+        {activeTab === 'overview' && (
+          <div className="space-y-10 pb-20">
+            {studios.map((studio) => (
+              <div 
+                key={studio.id} 
+                // Fix: Ensure ref callback returns void to avoid TypeScript error
+                ref={el => { overviewRefs.current[studio.id] = el; }}
+                className="scroll-mt-36"
+              >
+                <div className="flex items-center space-x-2 mb-3 px-1">
+                  <span className="text-xl">{studio.icon}</span>
+                  <h2 className="text-lg font-bold text-gray-900">{studio.name} 器材狀況表</h2>
+                </div>
+
+                <div className="ios-card overflow-hidden">
+                  {categories.map((cat, catIdx) => {
+                    const catItems = studio.equipment.filter(e => e.category === cat);
+                    if (catItems.length === 0) return null;
+
+                    return (
+                      <div key={cat} className={catIdx !== 0 ? 'border-t border-gray-100' : ''}>
+                        <div className="bg-gray-50/80 px-4 py-1.5 flex justify-between items-center">
+                          <span className="text-[10px] font-black text-gray-400 uppercase tracking-widest">{cat}</span>
+                          <span className="text-[9px] font-bold text-gray-400">{catItems.length} 品項</span>
+                        </div>
+                        <div className="overflow-x-auto">
+                          <table className="w-full text-left">
+                            <thead className="bg-white">
+                              <tr className="border-b border-gray-50">
+                                <th className="px-4 py-2 text-[9px] font-bold text-gray-400 uppercase">品項名稱</th>
+                                <th className="px-2 py-2 text-[9px] font-bold text-gray-400 uppercase text-center">狀態</th>
+                                <th className="px-4 py-2 text-[9px] font-bold text-gray-400 uppercase text-right">數量 (常/總)</th>
+                              </tr>
+                            </thead>
+                            <tbody>
+                              {catItems.map((item, itemIdx) => {
+                                const stats = getStatusSummary(item.units);
+                                const hasError = stats.damaged > 0 || stats.missing > 0;
+                                
+                                return (
+                                  <tr key={item.id} className={itemIdx % 2 === 1 ? 'bg-gray-50/30' : 'bg-white'}>
+                                    <td className="px-4 py-2.5">
+                                      <p className="text-xs font-bold text-gray-800 leading-tight">{item.name}</p>
+                                    </td>
+                                    <td className="px-2 py-2.5 text-center">
+                                      <div className="flex justify-center items-center space-x-1">
+                                        {stats.damaged > 0 && <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm" title="損壞"></div>}
+                                        {stats.missing > 0 && <div className="w-2 h-2 rounded-full bg-orange-500 shadow-sm" title="遺失"></div>}
+                                        {!hasError && <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm" title="正常"></div>}
+                                      </div>
+                                    </td>
+                                    <td className="px-4 py-2.5 text-right font-mono">
+                                      <span className={`text-xs font-bold ${hasError ? 'text-orange-600' : 'text-green-600'}`}>
+                                        {stats.normal}
+                                      </span>
+                                      <span className="text-[10px] text-gray-300 mx-1">/</span>
+                                      <span className="text-xs text-gray-400">{stats.total}</span>
+                                    </td>
+                                  </tr>
+                                );
+                              })}
+                            </tbody>
+                          </table>
+                        </div>
+                      </div>
+                    );
+                  })}
+                  {studio.equipment.length === 0 && (
+                    <div className="p-8 text-center text-gray-400 italic text-xs">
+                      暫無器材資料
+                    </div>
+                  )}
+                </div>
+              </div>
+            ))}
+          </div>
         )}
       </div>
       

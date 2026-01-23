@@ -89,6 +89,7 @@ const generateEquipmentList = (studioId: string, studioNum: number): Equipment[]
 // 特定為公共區生成的器材清單
 const generatePublicEquipment = (): Equipment[] => {
   return [
+    // 相機組 (保留上一階段新增項目)
     { id: 'sp-cam-a7s3', name: 'A7s3', category: '相機組', quantity: 3, unit: '台', units: createUnits('sp-cam-a7s3', 3) },
     { id: 'sp-cam-fx3', name: 'FX3', category: '相機組', quantity: 2, unit: '台', units: createUnits('sp-cam-fx3', 2) },
     { id: 'sp-cam-a6400', name: 'A6400', category: '相機組', quantity: 2, unit: '台', units: createUnits('sp-cam-a6400', 2) },
@@ -100,6 +101,20 @@ const generatePublicEquipment = (): Equipment[] => {
     { id: 'sp-cam-arm', name: '怪手', category: '相機組', quantity: 5, unit: '個', units: createUnits('sp-cam-arm', 5) },
     { id: 'sp-cam-base', name: '底座（含15管）', category: '相機組', quantity: 5, unit: '個', units: createUnits('sp-cam-base', 5) },
     { id: 'sp-cam-vmount', name: 'V掛背板', category: '相機組', quantity: 2, unit: '個', units: createUnits('sp-cam-vmount', 2) },
+
+    // 腳架組 (本次新增)
+    { id: 'sp-tri-teris', name: 'TERIS 圖瑞斯', category: '腳架組', quantity: 5, unit: '支', units: createUnits('sp-tri-teris', 5) },
+    { id: 'sp-tri-low', name: '圖瑞斯低角度腳架', category: '腳架組', quantity: 1, unit: '支', units: createUnits('sp-tri-low', 1) },
+    { id: 'sp-tri-manfrotto', name: 'Manfrotto單腳架', category: '腳架組', quantity: 2, unit: '支', units: createUnits('sp-tri-manfrotto', 2) },
+    { id: 'sp-tri-rs4', name: 'DJI RS4', category: '腳架組', quantity: 1, unit: '台', units: createUnits('sp-tri-rs4', 1) },
+    { id: 'sp-tri-kfoot', name: 'K腳', category: '腳架組', quantity: 4, unit: '支', units: createUnits('sp-tri-kfoot', 4) },
+    { id: 'sp-tri-cstand', name: 'C-Stand', category: '腳架組', quantity: 5, unit: '支', units: createUnits('sp-tri-cstand', 5) },
+    { id: 'sp-tri-boom', name: '七號桿(含芭樂頭)', category: '腳架組', quantity: 3, unit: '支', units: createUnits('sp-tri-boom', 3) },
+    { id: 'sp-tri-ext', name: 'KUPO 鐵製延伸桿', category: '腳架組', quantity: 1, unit: '支', units: createUnits('sp-tri-ext', 1) },
+    { id: 'sp-tri-rod', name: 'KUPO窗簾桿', category: '腳架組', quantity: 2, unit: '支', units: createUnits('sp-tri-rod', 2) },
+    { id: 'sp-tri-top', name: '頂機架', category: '腳架組', quantity: 4, unit: '個', units: createUnits('sp-tri-top', 4) },
+    { id: 'sp-tri-cclamp', name: 'C型夾', category: '腳架組', quantity: 3, unit: '個', units: createUnits('sp-tri-cclamp', 3) },
+    { id: 'sp-tri-mount', name: '螢幕固定架', category: '腳架組', quantity: 3, unit: '個', units: createUnits('sp-tri-mount', 3) },
   ];
 };
 
