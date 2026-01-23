@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Studio, EquipmentStatus, ViewType, HistoryRecord, Equipment } from './types.ts';
-import { INITIAL_STUDIOS } from './constants.ts';
+import { Studio, EquipmentStatus, ViewType, HistoryRecord, Equipment, EquipmentUnit } from './types.ts';
+import { INITIAL_STUDIOS, PERSONNEL_LIST } from './constants.ts';
 import DashboardView from './components/DashboardView.tsx';
 import StudioDetailView from './components/StudioDetailView.tsx';
 import DefectiveItemsView from './components/DefectiveItemsView.tsx';
@@ -9,12 +9,14 @@ import DefectiveItemsView from './components/DefectiveItemsView.tsx';
 const App: React.FC = () => {
   const [studios, setStudios] = useState<Studio[]>([]);
   const [history, setHistory] = useState<HistoryRecord[]>([]);
+  const [personnel, setPersonnel] = useState<string[]>([]);
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedStudioId, setSelectedStudioId] = useState<string | null>(null);
 
   useEffect(() => {
     const savedStudios = localStorage.getItem('studio_inventory_data');
     const savedHistory = localStorage.getItem('studio_inventory_history');
+    const savedPersonnel = localStorage.getItem('studio_inventory_personnel');
     
     if (savedStudios) {
       setStudios(JSON.parse(savedStudios));
@@ -24,6 +26,12 @@ const App: React.FC = () => {
 
     if (savedHistory) {
       setHistory(JSON.parse(savedHistory));
+    }
+
+    if (savedPersonnel) {
+      setPersonnel(JSON.parse(savedPersonnel));
+    } else {
+      setPersonnel(PERSONNEL_LIST);
     }
   }, []);
 
@@ -36,6 +44,12 @@ const App: React.FC = () => {
   useEffect(() => {
     localStorage.setItem('studio_inventory_history', JSON.stringify(history));
   }, [history]);
+
+  useEffect(() => {
+    if (personnel.length > 0) {
+      localStorage.setItem('studio_inventory_personnel', JSON.stringify(personnel));
+    }
+  }, [personnel]);
 
   const handleSelectStudio = (id: string) => {
     setSelectedStudioId(id);
@@ -51,34 +65,55 @@ const App: React.FC = () => {
     setSelectedStudioId(null);
   };
 
-  const updateEquipment = (studioId: string, equipmentId: string, updates: Partial<Equipment>, personnelName?: string) => {
+  const updateStudioInfo = (id: string, updates: Partial<{ name: string; icon: string; description: string }>) => {
+    setStudios(prev => prev.map(s => s.id === id ? { ...s, ...updates } : s));
+  };
+
+  const handleAddPersonnel = (name: string) => {
+    if (name && !personnel.includes(name)) {
+      setPersonnel(prev => [...prev, name]);
+    }
+  };
+
+  const handleDeletePersonnel = (name: string) => {
+    setPersonnel(prev => prev.filter(p => p !== name));
+  };
+
+  const updateEquipmentUnit = (studioId: string, equipmentId: string, unitIndex: number, updates: Partial<EquipmentUnit>, personnelName?: string) => {
     setStudios(prev => prev.map(studio => {
       if (studio.id === studioId) {
         return {
           ...studio,
           equipment: studio.equipment.map(item => {
             if (item.id === equipmentId) {
-              // History logic
-              if (updates.status === EquipmentStatus.NORMAL && item.status !== EquipmentStatus.NORMAL) {
-                const newRecord: HistoryRecord = {
-                  id: Date.now().toString(),
-                  equipmentId: item.id,
-                  equipmentName: item.name,
-                  studioName: studio.name,
-                  studioIcon: studio.icon,
-                  fixedAt: new Date().toISOString(),
-                  fixedBy: personnelName || '未知人員',
-                  previousStatus: item.status,
-                  remark: updates.remark || item.remark
-                };
-                setHistory(prevHist => [newRecord, ...prevHist]);
-              }
-              return { 
-                ...item, 
-                ...updates, 
-                lastChecked: new Date().toISOString(),
-                lastCheckedBy: personnelName || item.lastCheckedBy
-              };
+              const updatedUnits = item.units.map(unit => {
+                if (unit.unitIndex === unitIndex) {
+                  // History logic: transition to normal
+                  if (updates.status === EquipmentStatus.NORMAL && unit.status !== EquipmentStatus.NORMAL) {
+                    const newRecord: HistoryRecord = {
+                      id: Date.now().toString(),
+                      equipmentId: item.id,
+                      unitIndex: unit.unitIndex,
+                      equipmentName: item.name,
+                      studioName: studio.name,
+                      studioIcon: studio.icon,
+                      fixedAt: new Date().toISOString(),
+                      fixedBy: personnelName || '未知人員',
+                      previousStatus: unit.status,
+                      remark: updates.remark || unit.remark
+                    };
+                    setHistory(prevHist => [newRecord, ...prevHist]);
+                  }
+                  return { 
+                    ...unit, 
+                    ...updates, 
+                    lastChecked: new Date().toISOString(),
+                    lastCheckedBy: personnelName || unit.lastCheckedBy
+                  };
+                }
+                return unit;
+              });
+              return { ...item, units: updatedUnits };
             }
             return item;
           })
@@ -103,8 +138,12 @@ const App: React.FC = () => {
       {currentView === 'studioDetail' && selectedStudio && (
         <StudioDetailView 
           studio={selectedStudio} 
+          personnel={personnel}
+          onAddPersonnel={handleAddPersonnel}
+          onDeletePersonnel={handleDeletePersonnel}
           onBack={handleBack} 
-          onUpdateEquipment={(eqId, updates, personnel) => updateEquipment(selectedStudio.id, eqId, updates, personnel)}
+          onUpdateStudioInfo={(updates) => updateStudioInfo(selectedStudio.id, updates)}
+          onUpdateEquipmentUnit={(eqId, unitIdx, updates, personnelName) => updateEquipmentUnit(selectedStudio.id, eqId, unitIdx, updates, personnelName)}
         />
       )}
 
@@ -113,7 +152,7 @@ const App: React.FC = () => {
           studios={studios} 
           history={history}
           onBack={handleBack} 
-          onUpdateEquipment={(studioId, eqId, updates) => updateEquipment(studioId, eqId, updates)}
+          onUpdateEquipmentUnit={updateEquipmentUnit}
         />
       )}
       

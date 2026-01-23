@@ -10,7 +10,17 @@ export enum LabelStatus {
   UNLABELED = '未貼'
 }
 
-export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收音組' | '線材組';
+export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收音組' | '線材電池組' | '圖傳Monitor';
+
+export interface EquipmentUnit {
+  id: string; // e.g., "cam-1-unit-1"
+  unitIndex: number;
+  status: EquipmentStatus;
+  labelStatus: LabelStatus;
+  remark: string;
+  lastChecked?: string;
+  lastCheckedBy?: string;
+}
 
 export interface Equipment {
   id: string;
@@ -19,21 +29,18 @@ export interface Equipment {
   subCategory?: string;
   quantity: number;
   unit: string;
-  status: EquipmentStatus;
-  labelStatus: LabelStatus;
-  remark: string;
-  lastChecked?: string;
-  lastCheckedBy?: string; // New field
+  units: EquipmentUnit[]; // New: Array of individual units
 }
 
 export interface HistoryRecord {
   id: string;
   equipmentId: string;
+  unitIndex: number; // New: Track which specific unit was fixed
   equipmentName: string;
   studioName: string;
   studioIcon: string;
   fixedAt: string;
-  fixedBy: string; // New field
+  fixedBy: string;
   previousStatus: EquipmentStatus;
   remark: string;
 }
@@ -44,6 +51,7 @@ export interface Studio {
   description: string;
   equipment: Equipment[];
   icon: string;
+  themeColor: string; // New: Tailwind color name (e.g., 'green', 'pink', 'orange')
 }
 
 export type ViewType = 'dashboard' | 'studioDetail' | 'defectiveItems';
