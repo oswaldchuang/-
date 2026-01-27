@@ -21,16 +21,17 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
       case EquipmentStatus.NORMAL: return 'bg-green-500';
       case EquipmentStatus.DAMAGED: return 'bg-red-500';
       case EquipmentStatus.MISSING: return 'bg-orange-500';
+      case EquipmentStatus.OUT_FOR_SHOOTING: return 'bg-blue-500';
       default: return 'bg-gray-300';
     }
   };
 
-  const getStatusBg = (status: EquipmentStatus) => {
-    switch(status) {
-      case EquipmentStatus.NORMAL: return 'bg-green-50 text-green-700';
-      case EquipmentStatus.DAMAGED: return 'bg-red-50 text-red-700';
-      case EquipmentStatus.MISSING: return 'bg-orange-50 text-orange-700';
-      default: return 'bg-gray-50 text-gray-700';
+  const handleStatusUpdate = (status: EquipmentStatus) => {
+    // If switching away from OUT_FOR_SHOOTING, clear location
+    if (status !== EquipmentStatus.OUT_FOR_SHOOTING) {
+      onUpdateUnit(activeUnit.unitIndex, { status, location: undefined });
+    } else {
+      onUpdateUnit(activeUnit.unitIndex, { status });
     }
   };
 
@@ -43,6 +44,11 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
         <div className="flex-1">
           <div className="flex items-center space-x-2">
             <h4 className="font-bold text-gray-900">{item.name}</h4>
+            {activeUnit.status === EquipmentStatus.OUT_FOR_SHOOTING && activeUnit.location && (
+              <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md border border-blue-100 font-bold">
+                @{activeUnit.location}
+              </span>
+            )}
             {isAllChecked && (
               <span className="bg-blue-100 text-blue-600 p-0.5 rounded-full">
                 <svg className="w-3 h-3" fill="currentColor" viewBox="0 0 20 20">
@@ -60,7 +66,6 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
           </div>
         </div>
         <div className="flex items-center space-x-3">
-          {/* Quick status dots for all units */}
           <div className="flex -space-x-1">
             {item.units.map(u => (
               <div key={u.id} className={`w-2 h-2 rounded-full border border-white ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} />
@@ -77,9 +82,8 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
 
       {isExpanded && (
         <div className="px-4 pb-4 bg-gray-50/30 border-t border-gray-50 animate-in slide-in-from-top-2">
-          {/* Unit Segmented Control */}
           {item.quantity > 1 && (
-            <div className="my-4 overflow-x-auto">
+            <div className="my-4 overflow-x-auto no-scrollbar">
               <div className="flex p-1 bg-gray-200/50 rounded-xl space-x-1 min-w-max">
                 {item.units.map((unit, idx) => (
                   <button
@@ -101,7 +105,6 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
             </div>
           )}
 
-          {/* Unit Specific Controls */}
           <div className="space-y-4 pt-2">
             <div className="flex justify-between items-center px-1">
               <span className="text-[10px] font-black text-gray-400 uppercase">機台清點: 第 {activeUnitIndex + 1} 台</span>
@@ -113,11 +116,11 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
             <div className="space-y-3">
               <div>
                 <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">器材狀況</label>
-                <div className="grid grid-cols-3 gap-2">
+                <div className="grid grid-cols-2 gap-2">
                   {Object.values(EquipmentStatus).map(status => (
                     <button
                       key={status}
-                      onClick={() => onUpdateUnit(activeUnit.unitIndex, { status })}
+                      onClick={() => handleStatusUpdate(status)}
                       className={`py-2.5 px-1 rounded-xl text-xs font-bold ios-tap transition-all border-2 ${
                         activeUnit.status === status 
                           ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' 
@@ -129,6 +132,28 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                   ))}
                 </div>
               </div>
+
+              {/* Conditional Location Options for Out for Shooting */}
+              {activeUnit.status === EquipmentStatus.OUT_FOR_SHOOTING && (
+                <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50 animate-in zoom-in-95 duration-200">
+                  <label className="block text-[9px] font-black text-blue-400 uppercase mb-2 px-1">拍攝地點確認</label>
+                  <div className="grid grid-cols-2 gap-2">
+                    {['佈道學院', '學餐名家'].map(loc => (
+                      <button
+                        key={loc}
+                        onClick={() => onUpdateUnit(activeUnit.unitIndex, { location: loc })}
+                        className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-all border ${
+                          activeUnit.location === loc 
+                            ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm' 
+                            : 'bg-white border-blue-50 text-blue-400 active:bg-blue-50'
+                        }`}
+                      >
+                        {loc}
+                      </button>
+                    ))}
+                  </div>
+                </div>
+              )}
 
               <div className="grid grid-cols-2 gap-4">
                 <div>
@@ -162,10 +187,10 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
               </div>
 
               <div>
-                <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">異常備註</label>
+                <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">狀態備註</label>
                 <textarea
                   className="w-full bg-white border border-gray-100 rounded-xl p-3 text-sm resize-none h-20 shadow-sm focus:border-blue-300 transition-colors"
-                  placeholder="輸入此機台的特殊狀況..."
+                  placeholder="輸入此機台的特殊狀況（如：外出細節、損壞情況）..."
                   value={activeUnit.remark}
                   onChange={(e) => onUpdateUnit(activeUnit.unitIndex, { remark: e.target.value })}
                 />

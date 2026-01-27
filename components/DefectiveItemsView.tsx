@@ -18,7 +18,7 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
 
   const categories: EquipmentCategory[] = ['相機組', '腳架組', '圖傳Monitor', '燈光組', '收音組', '線材電池組'];
 
-  // Grouping logic: Get studios and their specific defective equipment
+  // Grouping logic: Get studios and their specific defective/away equipment
   const studiosWithIssues = studios.map(studio => ({
     ...studio,
     defectiveItems: studio.equipment.filter(eq => eq.units.some(u => u.status !== EquipmentStatus.NORMAL))
@@ -39,7 +39,8 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
     const normal = units.filter(u => u.status === EquipmentStatus.NORMAL).length;
     const damaged = units.filter(u => u.status === EquipmentStatus.DAMAGED).length;
     const missing = units.filter(u => u.status === EquipmentStatus.MISSING).length;
-    return { normal, damaged, missing, total: units.length };
+    const away = units.filter(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING).length;
+    return { normal, damaged, missing, away, total: units.length };
   };
 
   return (
@@ -77,7 +78,7 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
 
         {activeTab === 'pending' && totalIssueCount > 0 && (
           <div className="flex items-center justify-between px-1">
-            <span className="text-[10px] font-bold text-gray-400 uppercase">當前維修人員:</span>
+            <span className="text-[10px] font-bold text-gray-400 uppercase">當前負責人員:</span>
             <select 
               value={maintenancePersonnel}
               onChange={(e) => setMaintenancePersonnel(e.target.value)}
@@ -158,15 +159,15 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                   <h4 className="font-bold text-gray-800">{record.equipmentName} - <span className="text-blue-600">{record.unitIndex} 號機</span></h4>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <div className="bg-gray-50 p-2 rounded-xl">
-                      <p className="text-[9px] text-gray-400 uppercase font-black">損壞狀況</p>
+                      <p className="text-[9px] text-gray-400 uppercase font-black">原狀況</p>
                       <p className="text-xs text-red-500 font-bold">{record.previousStatus}</p>
                     </div>
                     <div className="bg-gray-50 p-2 rounded-xl border border-blue-50">
-                      <p className="text-[9px] text-gray-400 uppercase font-black">維修人</p>
+                      <p className="text-[9px] text-gray-400 uppercase font-black">處理人</p>
                       <p className="text-xs text-blue-600 font-bold">{record.fixedBy}</p>
                     </div>
                     <div className="bg-gray-50 p-2 rounded-xl">
-                      <p className="text-[9px] text-gray-400 uppercase font-black">完成日期</p>
+                      <p className="text-[9px] text-gray-400 uppercase font-black">日期</p>
                       <p className="text-xs text-gray-600 font-bold">{new Date(record.fixedAt).toLocaleDateString()}</p>
                     </div>
                   </div>
@@ -190,7 +191,6 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
             {studios.map((studio) => (
               <div 
                 key={studio.id} 
-                // Fix: Ensure ref callback returns void to avoid TypeScript error
                 ref={el => { overviewRefs.current[studio.id] = el; }}
                 className="scroll-mt-36"
               >
@@ -222,22 +222,35 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                             <tbody>
                               {catItems.map((item, itemIdx) => {
                                 const stats = getStatusSummary(item.units);
-                                const hasError = stats.damaged > 0 || stats.missing > 0;
+                                const hasError = stats.damaged > 0 || stats.missing > 0 || stats.away > 0;
                                 
+                                // Find if any units have a specific location
+                                const awayLocations = Array.from(new Set(item.units.filter(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING && u.location).map(u => u.location)));
+
                                 return (
                                   <tr key={item.id} className={itemIdx % 2 === 1 ? 'bg-gray-50/30' : 'bg-white'}>
                                     <td className="px-4 py-2.5">
-                                      <p className="text-xs font-bold text-gray-800 leading-tight">{item.name}</p>
+                                      <div className="flex flex-col">
+                                        <p className="text-xs font-bold text-gray-800 leading-tight">{item.name}</p>
+                                        {awayLocations.length > 0 && (
+                                          <div className="flex flex-wrap gap-1 mt-0.5">
+                                            {awayLocations.map(l => (
+                                              <span key={l} className="text-[8px] text-blue-500 font-bold bg-blue-50 px-1 rounded">@{l}</span>
+                                            ))}
+                                          </div>
+                                        )}
+                                      </div>
                                     </td>
                                     <td className="px-2 py-2.5 text-center">
                                       <div className="flex justify-center items-center space-x-1">
                                         {stats.damaged > 0 && <div className="w-2 h-2 rounded-full bg-red-500 shadow-sm" title="損壞"></div>}
                                         {stats.missing > 0 && <div className="w-2 h-2 rounded-full bg-orange-500 shadow-sm" title="遺失"></div>}
+                                        {stats.away > 0 && <div className="w-2 h-2 rounded-full bg-blue-500 shadow-sm" title="外出"></div>}
                                         {!hasError && <div className="w-2 h-2 rounded-full bg-green-500 shadow-sm" title="正常"></div>}
                                       </div>
                                     </td>
                                     <td className="px-4 py-2.5 text-right font-mono">
-                                      <span className={`text-xs font-bold ${hasError ? 'text-orange-600' : 'text-green-600'}`}>
+                                      <span className={`text-xs font-bold ${hasError ? 'text-blue-600' : 'text-green-600'}`}>
                                         {stats.normal}
                                       </span>
                                       <span className="text-[10px] text-gray-300 mx-1">/</span>

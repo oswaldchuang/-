@@ -2,7 +2,8 @@
 export enum EquipmentStatus {
   NORMAL = '正常',
   DAMAGED = '損壞',
-  MISSING = '遺失'
+  MISSING = '遺失',
+  OUT_FOR_SHOOTING = '外出拍攝'
 }
 
 export enum LabelStatus {
@@ -18,6 +19,7 @@ export interface EquipmentUnit {
   status: EquipmentStatus;
   labelStatus: LabelStatus;
   remark: string;
+  location?: string; // New: Specific location for OUT_FOR_SHOOTING
   lastChecked?: string;
   lastCheckedBy?: string;
 }
@@ -29,13 +31,13 @@ export interface Equipment {
   subCategory?: string;
   quantity: number;
   unit: string;
-  units: EquipmentUnit[]; // New: Array of individual units
+  units: EquipmentUnit[]; 
 }
 
 export interface HistoryRecord {
   id: string;
   equipmentId: string;
-  unitIndex: number; // New: Track which specific unit was fixed
+  unitIndex: number; 
   equipmentName: string;
   studioName: string;
   studioIcon: string;
@@ -51,7 +53,7 @@ export interface Studio {
   description: string;
   equipment: Equipment[];
   icon: string;
-  themeColor: string; // New: Tailwind color name (e.g., 'green', 'pink', 'orange')
+  themeColor: string; 
 }
 
 export type ViewType = 'dashboard' | 'studioDetail' | 'defectiveItems';
