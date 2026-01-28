@@ -1,24 +1,31 @@
-
 import React, { useState, useRef } from 'react';
-import { Studio, EquipmentStatus, Equipment, HistoryRecord, EquipmentUnit, EquipmentCategory } from '../types.ts';
-import { PERSONNEL_LIST } from '../constants.ts';
-import EquipmentRow from './EquipmentRow.tsx';
+import { Studio, EquipmentStatus, Equipment, HistoryRecord, EquipmentUnit, EquipmentCategory } from '../types';
+import { PERSONNEL_LIST } from '../constants';
+import EquipmentRow from './EquipmentRow';
 
 interface Props {
   studios: Studio[];
   history: HistoryRecord[];
   onBack: () => void;
+  onSyncAllStudios: () => void;
   onUpdateEquipmentUnit: (studioId: string, eqId: string, unitIdx: number, updates: Partial<EquipmentUnit>, personnel?: string) => void;
+  isLoading?: boolean;
 }
 
-const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdateEquipmentUnit }) => {
+const DefectiveItemsView: React.FC<Props> = ({ 
+  studios, 
+  history, 
+  onBack, 
+  onSyncAllStudios, 
+  onUpdateEquipmentUnit,
+  isLoading = false 
+}) => {
   const [activeTab, setActiveTab] = useState<'pending' | 'away' | 'history' | 'overview'>('pending');
   const [maintenancePersonnel, setMaintenancePersonnel] = useState<string>(PERSONNEL_LIST[0]);
   const overviewRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const categories: EquipmentCategory[] = ['相機組', '腳架組', '圖傳Monitor', '燈光組', '收音組', '線材電池組'];
 
-  // Logic: Filter studios that have Damaged or Missing items
   const studiosWithIssues = studios.map(studio => ({
     ...studio,
     defectiveItems: studio.equipment.filter(eq => 
@@ -26,7 +33,6 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
     )
   })).filter(s => s.defectiveItems.length > 0);
 
-  // Logic: Filter studios that have items Out for Shooting
   const studiosWithAwayItems = studios.map(studio => ({
     ...studio,
     awayItems: studio.equipment.filter(eq => 
@@ -321,6 +327,44 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                 </div>
               </div>
             ))}
+
+            <div className="px-2 mt-12 pb-10">
+              <div className="ios-card p-6 bg-white border border-red-100 shadow-xl shadow-red-50/50">
+                <div className="flex items-center space-x-3 mb-4">
+                  <div className="bg-red-50 p-2 rounded-xl">
+                    <svg className="w-6 h-6 text-red-500" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                      <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M13 16h-1v-4h-1m1-4h.01M21 12a9 9 0 11-18 0 9 9 0 0118 0z" />
+                    </svg>
+                  </div>
+                  <div>
+                    <h3 className="font-bold text-gray-900">同步器材標籤</h3>
+                    <p className="text-[10px] text-gray-400 font-medium">適用於當您在代碼中更新了器材名稱或數量時。</p>
+                  </div>
+                </div>
+                <button 
+                  disabled={isLoading}
+                  onClick={onSyncAllStudios}
+                  className={`w-full ${isLoading ? 'bg-gray-400' : 'bg-red-500'} text-white py-4 rounded-2xl font-bold shadow-lg shadow-red-100 ios-tap flex items-center justify-center space-x-2 active:scale-[0.98] transition-all`}
+                >
+                  {isLoading ? (
+                    <>
+                      <div className="w-4 h-4 border-2 border-white border-t-transparent rounded-full animate-spin"></div>
+                      <span>同步中...</span>
+                    </>
+                  ) : (
+                    <>
+                      <svg className="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                        <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M4 4v5h.582m15.356 2A8.001 8.001 0 004.582 9m0 0H9m11 11v-5h-.581m0 0a8.003 8.003 0 01-15.357-2m15.357 2H15" />
+                      </svg>
+                      <span>一鍵同步所有棚器材標籤</span>
+                    </>
+                  )}
+                </button>
+                <p className="text-[9px] text-gray-400 text-center mt-3 leading-relaxed">
+                  注意：此動作將強力覆寫所有棚的編號標籤，但會<span className="text-red-400 font-bold">嘗試保留</span>現有的維修狀態與備註。
+                </p>
+              </div>
+            </div>
           </div>
         )}
       </div>

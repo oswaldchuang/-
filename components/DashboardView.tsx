@@ -1,6 +1,5 @@
-
 import React from 'react';
-import { Studio, EquipmentStatus } from '../types.ts';
+import { Studio, EquipmentStatus } from '../types';
 
 interface Props {
   studios: Studio[];
@@ -33,9 +32,15 @@ const DashboardView: React.FC<Props> = ({ studios, onSelectStudio, onShowDefecti
 
   return (
     <div className="flex-1 overflow-y-auto px-5 pt-12 pb-20">
-      <header className="mb-8">
-        <h1 className="text-3xl font-bold tracking-tight text-gray-900">器材清點</h1>
-        <p className="text-gray-500 text-sm mt-1">更新於 {new Date().toLocaleDateString()}</p>
+      <header className="mb-8 flex justify-between items-start">
+        <div>
+          <h1 className="text-3xl font-bold tracking-tight text-gray-900">器材清點</h1>
+          <p className="text-gray-500 text-sm mt-1">更新於 {new Date().toLocaleDateString()}</p>
+        </div>
+        <div className="flex items-center space-x-1 bg-green-100 px-2 py-1 rounded-full border border-green-200">
+          <div className="w-1.5 h-1.5 bg-green-500 rounded-full animate-pulse"></div>
+          <span className="text-[9px] font-bold text-green-700 uppercase">Cloud Synced</span>
+        </div>
       </header>
 
       <div className="grid grid-cols-1 gap-4">

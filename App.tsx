@@ -1,11 +1,10 @@
-
 import React, { useState, useEffect } from 'react';
-import { Studio, EquipmentStatus, ViewType, HistoryRecord, EquipmentUnit } from './types.ts';
-import { INITIAL_STUDIOS, PERSONNEL_LIST } from './constants.ts';
-import DashboardView from './components/DashboardView.tsx';
-import StudioDetailView from './components/StudioDetailView.tsx';
-import DefectiveItemsView from './components/DefectiveItemsView.tsx';
-import { db } from './firebase.ts';
+import { Studio, EquipmentStatus, ViewType, HistoryRecord, EquipmentUnit, LabelStatus } from './types';
+import { INITIAL_STUDIOS, PERSONNEL_LIST, generateEquipmentList } from './constants';
+import DashboardView from './components/DashboardView';
+import StudioDetailView from './components/StudioDetailView';
+import DefectiveItemsView from './components/DefectiveItemsView';
+import { db } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -14,22 +13,21 @@ import {
   addDoc, 
   query, 
   orderBy, 
-  getDocs,
   deleteDoc,
   writeBatch
 } from 'firebase/firestore';
 
 /**
- * Recursively removes any keys with undefined values from an object.
- * Firestore does not support 'undefined'.
+ * 終極資料淨化函式
+ * 遞歸刪除所有 undefined 和 null，確保 Firebase 接受資料
  */
 const cleanData = (data: any): any => {
   if (Array.isArray(data)) {
-    return data.map(v => cleanData(v));
+    return data.map(v => cleanData(v)).filter(v => v !== undefined);
   } else if (data !== null && typeof data === 'object') {
     return Object.fromEntries(
       Object.entries(data)
-        .filter(([_, v]) => v !== undefined)
+        .filter(([_, v]) => v !== undefined && v !== null)
         .map(([k, v]) => [k, cleanData(v)])
     );
   }
@@ -43,25 +41,24 @@ const App: React.FC = () => {
   const [currentView, setCurrentView] = useState<ViewType>('dashboard');
   const [selectedStudioId, setSelectedStudioId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
+  const [syncStatus, setSyncStatus] = useState<string>('');
 
-  // 1. Sync Studios from Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'equipments'), (snapshot) => {
       if (snapshot.empty) {
-        // Initial Seed
         seedInitialData();
       } else {
         const studioData = snapshot.docs.map(doc => doc.data() as Studio);
-        // Sort by ID to keep order consistent
         const sorted = [...studioData].sort((a, b) => a.id.localeCompare(b.id));
         setStudios(sorted);
         setIsLoading(false);
       }
+    }, (error) => {
+      console.error("Firestore Listen Error:", error);
     });
     return () => unsubscribe();
   }, []);
 
-  // 2. Sync History from Firestore
   useEffect(() => {
     const q = query(collection(db, 'history'), orderBy('fixedAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -71,38 +68,42 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
-  // 3. Sync Personnel from Firestore
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'personnel'), (snapshot) => {
-      if (snapshot.empty && !isLoading) {
-        seedInitialPersonnel();
-      } else {
+      if (!snapshot.empty || !isLoading) {
         const names = snapshot.docs.map(doc => doc.data().name as string);
         setPersonnel(names);
+      } else if (snapshot.empty && !isLoading) {
+        seedInitialPersonnel();
       }
     });
     return () => unsubscribe();
   }, [isLoading]);
 
   const seedInitialData = async () => {
-    console.log("Seeding initial equipment data to Firestore...");
-    const batch = writeBatch(db);
-    INITIAL_STUDIOS.forEach((studio) => {
-      const studioRef = doc(db, 'equipments', studio.id);
-      // Clean data before seeding
-      batch.set(studioRef, cleanData(studio));
-    });
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      INITIAL_STUDIOS.forEach((studio) => {
+        const studioRef = doc(db, 'equipments', studio.id);
+        batch.set(studioRef, cleanData(studio));
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("Seed Data Error:", e);
+    }
   };
 
   const seedInitialPersonnel = async () => {
-    console.log("Seeding initial personnel data to Firestore...");
-    const batch = writeBatch(db);
-    PERSONNEL_LIST.forEach((name) => {
-      const pRef = doc(db, 'personnel', name);
-      batch.set(pRef, { name });
-    });
-    await batch.commit();
+    try {
+      const batch = writeBatch(db);
+      PERSONNEL_LIST.forEach((name) => {
+        const pRef = doc(db, 'personnel', name);
+        batch.set(pRef, { name });
+      });
+      await batch.commit();
+    } catch (e) {
+      console.error("Seed Personnel Error:", e);
+    }
   };
 
   const handleSelectStudio = (id: string) => {
@@ -119,11 +120,82 @@ const App: React.FC = () => {
     setSelectedStudioId(null);
   };
 
-  const updateStudioInfo = async (id: string, updates: Partial<{ name: string; icon: string; description: string }>) => {
-    const studioRef = doc(db, 'equipments', id);
-    const studio = studios.find(s => s.id === id);
-    if (studio) {
-      await setDoc(studioRef, cleanData({ ...studio, ...updates }));
+  /**
+   * 強化版一鍵同步 (極致 Debug)
+   * 增加 Try-Catch, Loading 鎖定, 與資料深度淨化
+   */
+  const handleSyncAllStudios = async () => {
+    const confirmMsg = "【強制更新確認】\n這將把「公共區 14 項器材」強行寫入雲端資料庫。\n同步期間請勿關閉視窗，完成後請重新整理網頁。是否繼續？";
+    if (!window.confirm(confirmMsg)) return;
+    
+    setIsLoading(true);
+    setSyncStatus('正在啟動 Debug 同步引擎...');
+
+    try {
+      const batch = writeBatch(db);
+      const syncToken = `FORCE_SYNC_${Date.now()}`;
+      console.log("🚀 開始同步任務 | Token:", syncToken);
+
+      // 遍歷 INITIAL_STUDIOS，這是我們的結構準則
+      for (const targetDef of INITIAL_STUDIOS) {
+        setSyncStatus(`正在整理: ${targetDef.name} 器材清單...`);
+        
+        const existingData = studios.find(s => s.id === targetDef.id);
+        const studioNum = targetDef.id === 'studio-public' ? 0 : parseInt(targetDef.id.replace('studio-', ''));
+        const prefix = targetDef.id === 'studio-public' ? 'sp' : `s${studioNum}`;
+        
+        // 取得代碼中最新定義的器材結構
+        const freshList = generateEquipmentList(prefix, studioNum);
+        
+        const mergedEquipment = freshList.map(freshItem => {
+          // 嘗試在資料庫尋找匹配的項目 (按名稱或 ID)
+          const oldItem = existingData?.equipment.find(e => 
+            e.name === freshItem.name || e.id === freshItem.id
+          );
+
+          if (oldItem) {
+            // 合併現有的「故障/遺失」等狀態
+            const mergedUnits = freshItem.units.map((freshUnit, idx) => {
+              const oldUnit = oldItem.units[idx];
+              return {
+                ...freshUnit, 
+                status: oldUnit?.status || EquipmentStatus.NORMAL,
+                remark: oldUnit?.remark || "",
+                lastChecked: oldUnit?.lastChecked || undefined,
+                lastCheckedBy: oldUnit?.lastCheckedBy || undefined,
+                location: oldUnit?.location || undefined,
+                labelStatus: freshUnit.unitLabel ? LabelStatus.LABELED : (oldUnit?.labelStatus || LabelStatus.UNLABELED)
+              };
+            });
+            return { ...freshItem, units: mergedUnits };
+          }
+          // 如果是全新項目 (例如新增的 14 項電池)，直接使用 freshItem
+          return freshItem;
+        });
+
+        const studioRef = doc(db, 'equipments', targetDef.id);
+        const finalPayload = cleanData({
+          ...targetDef,
+          equipment: mergedEquipment,
+          lastSync: new Date().toISOString(),
+          _debugToken: syncToken
+        });
+
+        console.log(`📝 準備寫入棚位: ${targetDef.name}`, finalPayload);
+        batch.set(studioRef, finalPayload);
+      }
+
+      setSyncStatus('正在將資料提交至雲端...');
+      await batch.commit();
+      
+      console.log("✅ 雲端寫入成功！");
+      alert("✅ 同步成功！\n\n公共區 14 項電池設備已全數掛載完畢。\n若畫面未出現，請【重新整理】網頁以清除快取。");
+    } catch (error: any) {
+      console.error("🔥 同步發生致命錯誤:", error);
+      alert(`❌ 更新失敗！\n錯誤代碼: ${error.code || '未知'}\n錯誤訊息: ${error.message}\n\n請截圖控制台錯誤訊息並回報。`);
+    } finally {
+      setIsLoading(false);
+      setSyncStatus('');
     }
   };
 
@@ -147,7 +219,6 @@ const App: React.FC = () => {
       if (item.id === equipmentId) {
         const updatedUnits = item.units.map(unit => {
           if (unit.unitIndex === unitIndex) {
-            // History logic: transition to normal
             if (updates.status === EquipmentStatus.NORMAL && unit.status !== EquipmentStatus.NORMAL) {
               const newRecord: Omit<HistoryRecord, 'id'> = {
                 equipmentId: item.id,
@@ -182,49 +253,53 @@ const App: React.FC = () => {
 
   const selectedStudio = studios.find(s => s.id === selectedStudioId);
 
-  if (isLoading && studios.length === 0) {
-    return (
-      <div className="min-h-screen flex items-center justify-center bg-[#F2F2F7]">
-        <div className="flex flex-col items-center">
-          <div className="w-10 h-10 border-4 border-blue-500 border-t-transparent rounded-full animate-spin mb-4"></div>
-          <p className="text-gray-500 font-medium">同步中...</p>
-        </div>
-      </div>
-    );
-  }
-
   return (
-    <div className="min-h-screen max-w-md mx-auto relative flex flex-col shadow-2xl bg-[#F2F2F7]">
+    <div className="min-h-screen max-w-md mx-auto relative flex flex-col shadow-2xl bg-white">
       {currentView === 'dashboard' && (
         <DashboardView 
           studios={studios} 
           onSelectStudio={handleSelectStudio} 
-          onShowDefective={handleShowDefective}
+          onShowDefective={handleShowDefective} 
         />
       )}
       
       {currentView === 'studioDetail' && selectedStudio && (
         <StudioDetailView 
-          studio={selectedStudio} 
+          studio={selectedStudio}
           personnel={personnel}
           onAddPersonnel={handleAddPersonnel}
           onDeletePersonnel={handleDeletePersonnel}
-          onBack={handleBack} 
-          onUpdateStudioInfo={(updates) => updateStudioInfo(selectedStudio.id, updates)}
-          onUpdateEquipmentUnit={(eqId, unitIdx, updates, personnelName) => updateEquipmentUnit(selectedStudio.id, eqId, unitIdx, updates, personnelName)}
+          onBack={handleBack}
+          onUpdateEquipmentUnit={(eqId, unitIdx, updates, pName) => updateEquipmentUnit(selectedStudio.id, eqId, unitIdx, updates, pName)}
+          onUpdateStudioInfo={() => {}}
         />
       )}
 
       {currentView === 'defectiveItems' && (
         <DefectiveItemsView 
-          studios={studios} 
+          studios={studios}
           history={history}
-          onBack={handleBack} 
+          onBack={handleBack}
+          onSyncAllStudios={handleSyncAllStudios}
           onUpdateEquipmentUnit={updateEquipmentUnit}
+          isLoading={isLoading}
         />
       )}
-      
-      <div className="h-1.5 w-32 bg-gray-300 rounded-full mx-auto my-3 shrink-0"></div>
+
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl flex items-center justify-center z-[300] animate-in fade-in duration-300">
+          <div className="bg-white p-12 rounded-[3.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] flex flex-col items-center max-w-[85%] border border-white/30">
+            <div className="relative w-24 h-24 mb-10">
+              <div className="absolute inset-0 border-[8px] border-blue-50 rounded-full"></div>
+              <div className="absolute inset-0 border-[8px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+            </div>
+            <h3 className="text-2xl font-black text-gray-900 text-center mb-4 tracking-tighter">系統強制同步中</h3>
+            <p className="text-sm text-gray-400 text-center px-6 leading-relaxed font-medium animate-pulse">
+              {syncStatus || '正在向雲端寫入 14 項電池設備，請稍候...'}
+            </p>
+          </div>
+        </div>
+      )}
     </div>
   );
 };

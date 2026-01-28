@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
-import { Studio, Equipment, EquipmentStatus, EquipmentCategory, EquipmentUnit } from '../types.ts';
+import { Studio, EquipmentStatus, EquipmentCategory, EquipmentUnit } from '../types';
+import EquipmentRow from './EquipmentRow';
 
 interface Props {
   studio: Studio;
@@ -11,8 +11,6 @@ interface Props {
   onUpdateStudioInfo: (updates: Partial<{ name: string; icon: string; description: string }>) => void;
   onUpdateEquipmentUnit: (id: string, unitIdx: number, updates: Partial<any>, personnelName?: string) => void;
 }
-
-import EquipmentRow from './EquipmentRow.tsx';
 
 const StudioDetailView: React.FC<Props> = ({ 
   studio, 
@@ -27,7 +25,6 @@ const StudioDetailView: React.FC<Props> = ({
   const [isManagingPersonnel, setIsManagingPersonnel] = useState(false);
   const [newPersonnelName, setNewPersonnelName] = useState('');
 
-  // Helper to get color classes based on themeColor
   const getColorClasses = (color: string) => {
     const mapping: Record<string, { bg: string, text: string, bar: string, lightBg: string, border: string }> = {
       green: { bg: 'bg-green-500', text: 'text-green-600', bar: 'bg-green-500', lightBg: 'bg-green-50', border: 'border-green-100' },
@@ -81,7 +78,6 @@ const StudioDetailView: React.FC<Props> = ({
     ? studio.equipment.filter(e => e.category === selectedCategory)
     : [];
 
-  // Step 1: Personnel Selection & Management
   if (!selectedPersonnel) {
     return (
       <div className="flex-1 flex flex-col h-full bg-[#F2F2F7]">
@@ -92,7 +88,7 @@ const StudioDetailView: React.FC<Props> = ({
                 <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M15 19l-7-7 7-7" />
               </svg>
             </button>
-            <h1 className="text-xl font-bold">{isManagingPersonnel ? '管理名單' : `${studio.name} 人員確認`}</h1>
+            <h1 className="text-xl font-bold">{isManagingPersonnel ? '管理設定' : `${studio.name} 人員確認`}</h1>
           </div>
           <button 
             onClick={() => setIsManagingPersonnel(!isManagingPersonnel)} 
@@ -137,25 +133,27 @@ const StudioDetailView: React.FC<Props> = ({
           </div>
 
           {isManagingPersonnel && (
-            <form onSubmit={handleAddSubmit} className="mt-6">
-              <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 px-1">新增團隊成員</label>
-              <div className="flex space-x-2">
-                <input 
-                  type="text" 
-                  value={newPersonnelName}
-                  onChange={(e) => setNewPersonnelName(e.target.value)}
-                  placeholder="輸入姓名..."
-                  className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
-                />
-                <button 
-                  type="submit"
-                  disabled={!newPersonnelName.trim()}
-                  className="bg-blue-600 text-white px-5 rounded-xl font-bold text-sm ios-tap disabled:opacity-50"
-                >
-                  新增
-                </button>
-              </div>
-            </form>
+            <div className="space-y-8 mt-6">
+              <form onSubmit={handleAddSubmit}>
+                <label className="block text-[10px] font-bold text-gray-400 uppercase mb-2 px-1">新增團隊成員</label>
+                <div className="flex space-x-2">
+                  <input 
+                    type="text" 
+                    value={newPersonnelName}
+                    onChange={(e) => setNewPersonnelName(e.target.value)}
+                    placeholder="輸入姓名..."
+                    className="flex-1 bg-white border border-gray-100 rounded-xl px-4 py-3 text-sm focus:ring-2 focus:ring-blue-100 transition-all shadow-sm"
+                  />
+                  <button 
+                    type="submit"
+                    disabled={!newPersonnelName.trim()}
+                    className="bg-blue-600 text-white px-5 rounded-xl font-bold text-sm ios-tap disabled:opacity-50"
+                  >
+                    新增
+                  </button>
+                </div>
+              </form>
+            </div>
           )}
         </div>
         

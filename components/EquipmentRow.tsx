@@ -1,6 +1,6 @@
-
 import React, { useState } from 'react';
-import { Equipment, EquipmentStatus, LabelStatus, EquipmentUnit } from '../types.ts';
+import { Equipment, EquipmentStatus, LabelStatus, EquipmentUnit } from '../types';
+import { GoogleGenAI } from "@google/genai";
 
 interface Props {
   item: Equipment;
@@ -10,6 +10,7 @@ interface Props {
 const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
   const [isExpanded, setIsExpanded] = useState(false);
   const [activeUnitIndex, setActiveUnitIndex] = useState(0);
+  const [isAiLoading, setIsAiLoading] = useState(false);
 
   const activeUnit = item.units[activeUnitIndex];
   
@@ -27,7 +28,6 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
   };
 
   const handleStatusUpdate = (status: EquipmentStatus) => {
-    // If switching away from OUT_FOR_SHOOTING, clear location
     if (status !== EquipmentStatus.OUT_FOR_SHOOTING) {
       onUpdateUnit(activeUnit.unitIndex, { status, location: undefined });
     } else {
@@ -35,8 +35,29 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
     }
   };
 
+  const handleAISuggestRemark = async () => {
+    if (!activeUnit.status) return;
+    setIsAiLoading(true);
+    try {
+      const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
+      const response = await ai.models.generateContent({
+        model: 'gemini-3-flash-preview',
+        contents: `You are an equipment manager for a professional film studio. Suggest a concise, professional remark in Chinese (traditional) for a piece of equipment named '${item.name}' which is currently in '${activeUnit.status}' status. The remark should be brief and suitable for a maintenance log. If the status is '正常' (Normal), suggest something like '檢查完畢，狀態良好'.`,
+      });
+      const text = response.text;
+      if (text) {
+        const cleanedText = text.trim().replace(/^["']|["']$/g, '');
+        onUpdateUnit(activeUnit.unitIndex, { remark: cleanedText });
+      }
+    } catch (e) {
+      console.error('Gemini AI Remark Suggestion Error:', e);
+    } finally {
+      setIsAiLoading(false);
+    }
+  };
+
   return (
-    <div className={`ios-card overflow-hidden transition-all duration-300 ${isExpanded ? 'ring-2 ring-blue-500/20' : ''}`}>
+    <div className={`ios-card overflow-hidden transition-all duration-300 ${isExpanded ? 'ring-2 ring-blue-500/20 shadow-lg' : ''}`}>
       <div 
         className="p-4 flex items-center justify-between cursor-pointer"
         onClick={() => setIsExpanded(!isExpanded)}
@@ -68,7 +89,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
         <div className="flex items-center space-x-3">
           <div className="flex -space-x-1">
             {item.units.map(u => (
-              <div key={u.id} className={`w-2 h-2 rounded-full border border-white ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} title={u.unitLabel} />
+              <div key={u.id} className={`w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} />
             ))}
           </div>
           <svg 
@@ -91,11 +112,15 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                     onClick={() => setActiveUnitIndex(idx)}
                     className={`relative py-2 px-3 text-xs font-bold rounded-lg transition-all ${
                       activeUnitIndex === idx 
-                        ? 'bg-white text-blue-600 shadow-sm' 
+                        ? 'bg-white text-blue-600 shadow-sm border border-blue-50' 
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {unit.unitLabel || `${unit.unitIndex} 號機`}
+                    {unit.unitLabel ? (
+                      <span className="text-blue-700 font-black">{unit.unitLabel}</span>
+                    ) : (
+                      `${unit.unitIndex} 號機`
+                    )}
                     {unit.lastChecked && (
                       <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${getStatusColor(unit.status)} shadow-sm`} />
                     )}
@@ -108,10 +133,10 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
           <div className="space-y-4 pt-2">
             <div className="flex justify-between items-center px-1">
               <span className="text-[10px] font-black text-gray-400 uppercase">
-                當前機台: {activeUnit.unitLabel || `${activeUnit.unitIndex} 號機`}
+                當前機台: <span className="text-blue-600 font-black">{activeUnit.unitLabel || `${activeUnit.unitIndex} 號機`}</span>
               </span>
               {activeUnit.lastChecked && (
-                <span className="text-[9px] text-gray-400">最後清點: {activeUnit.lastCheckedBy}</span>
+                <span className="text-[9px] text-gray-400 font-bold">清點人: {activeUnit.lastCheckedBy}</span>
               )}
             </div>
 
@@ -176,7 +201,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                   </div>
                 </div>
                 <div>
-                   <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">快捷切換</label>
+                   <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">快速切換</label>
                    <button 
                     disabled={activeUnitIndex === item.units.length - 1}
                     onClick={() => setActiveUnitIndex(activeUnitIndex + 1)}
@@ -188,7 +213,16 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
               </div>
 
               <div>
-                <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">狀態備註</label>
+                <div className="flex justify-between items-center mb-2 px-1">
+                  <label className="block text-[9px] font-black text-gray-400 uppercase">狀態備註</label>
+                  <button 
+                    onClick={handleAISuggestRemark}
+                    disabled={isAiLoading}
+                    className={`text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 ios-tap ${isAiLoading ? 'opacity-50 animate-pulse' : ''}`}
+                  >
+                    {isAiLoading ? '生成中...' : '✨ AI 建議'}
+                  </button>
+                </div>
                 <textarea
                   className="w-full bg-white border border-gray-100 rounded-xl p-3 text-sm resize-none h-20 shadow-sm focus:border-blue-300 transition-colors"
                   placeholder="輸入此機台的特殊狀況..."
@@ -197,13 +231,6 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                 />
               </div>
             </div>
-            
-            {activeUnit.lastChecked && (
-              <div className="flex justify-between items-center px-1 pt-2 border-t border-gray-50">
-                 <span className="text-[9px] text-gray-300">ID: {activeUnit.id}</span>
-                 <span className="text-[9px] text-gray-300 italic">{new Date(activeUnit.lastChecked).toLocaleString()}</span>
-              </div>
-            )}
           </div>
         </div>
       )}
