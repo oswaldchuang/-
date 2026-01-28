@@ -68,7 +68,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
         <div className="flex items-center space-x-3">
           <div className="flex -space-x-1">
             {item.units.map(u => (
-              <div key={u.id} className={`w-2 h-2 rounded-full border border-white ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} />
+              <div key={u.id} className={`w-2 h-2 rounded-full border border-white ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} title={u.unitLabel} />
             ))}
           </div>
           <svg 
@@ -89,15 +89,15 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                   <button
                     key={unit.id}
                     onClick={() => setActiveUnitIndex(idx)}
-                    className={`relative py-2 px-4 text-xs font-bold rounded-lg transition-all ${
+                    className={`relative py-2 px-3 text-xs font-bold rounded-lg transition-all ${
                       activeUnitIndex === idx 
                         ? 'bg-white text-blue-600 shadow-sm' 
                         : 'text-gray-500 hover:text-gray-700'
                     }`}
                   >
-                    {unit.unitIndex} 號機
+                    {unit.unitLabel || `${unit.unitIndex} 號機`}
                     {unit.lastChecked && (
-                      <div className={`absolute top-1.5 right-1.5 w-1.5 h-1.5 rounded-full ${getStatusColor(unit.status)} shadow-sm`} />
+                      <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${getStatusColor(unit.status)} shadow-sm`} />
                     )}
                   </button>
                 ))}
@@ -107,7 +107,9 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
 
           <div className="space-y-4 pt-2">
             <div className="flex justify-between items-center px-1">
-              <span className="text-[10px] font-black text-gray-400 uppercase">機台清點: 第 {activeUnitIndex + 1} 台</span>
+              <span className="text-[10px] font-black text-gray-400 uppercase">
+                當前機台: {activeUnit.unitLabel || `${activeUnit.unitIndex} 號機`}
+              </span>
               {activeUnit.lastChecked && (
                 <span className="text-[9px] text-gray-400">最後清點: {activeUnit.lastCheckedBy}</span>
               )}
@@ -133,7 +135,6 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                 </div>
               </div>
 
-              {/* Conditional Location Options for Out for Shooting */}
               {activeUnit.status === EquipmentStatus.OUT_FOR_SHOOTING && (
                 <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50 animate-in zoom-in-95 duration-200">
                   <label className="block text-[9px] font-black text-blue-400 uppercase mb-2 px-1">拍攝地點確認</label>
@@ -190,7 +191,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                 <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">狀態備註</label>
                 <textarea
                   className="w-full bg-white border border-gray-100 rounded-xl p-3 text-sm resize-none h-20 shadow-sm focus:border-blue-300 transition-colors"
-                  placeholder="輸入此機台的特殊狀況（如：外出細節、損壞情況）..."
+                  placeholder="輸入此機台的特殊狀況..."
                   value={activeUnit.remark}
                   onChange={(e) => onUpdateUnit(activeUnit.unitIndex, { remark: e.target.value })}
                 />

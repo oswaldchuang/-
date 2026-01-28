@@ -16,10 +16,11 @@ export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收�
 export interface EquipmentUnit {
   id: string; // e.g., "cam-1-unit-1"
   unitIndex: number;
+  unitLabel?: string; // New: Specific label for the unit (e.g., "1A-A7S3-01")
   status: EquipmentStatus;
   labelStatus: LabelStatus;
   remark: string;
-  location?: string; // New: Specific location for OUT_FOR_SHOOTING
+  location?: string; 
   lastChecked?: string;
   lastCheckedBy?: string;
 }
@@ -38,6 +39,7 @@ export interface HistoryRecord {
   id: string;
   equipmentId: string;
   unitIndex: number; 
+  unitLabel?: string; // New: Label preserved in history
   equipmentName: string;
   studioName: string;
   studioIcon: string;

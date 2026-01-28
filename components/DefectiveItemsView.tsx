@@ -12,22 +12,37 @@ interface Props {
 }
 
 const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdateEquipmentUnit }) => {
-  const [activeTab, setActiveTab] = useState<'pending' | 'history' | 'overview'>('pending');
+  const [activeTab, setActiveTab] = useState<'pending' | 'away' | 'history' | 'overview'>('pending');
   const [maintenancePersonnel, setMaintenancePersonnel] = useState<string>(PERSONNEL_LIST[0]);
   const overviewRefs = useRef<{ [key: string]: HTMLDivElement | null }>({});
 
   const categories: EquipmentCategory[] = ['相機組', '腳架組', '圖傳Monitor', '燈光組', '收音組', '線材電池組'];
 
-  // Grouping logic: Get studios and their specific defective/away equipment
+  // Logic: Filter studios that have Damaged or Missing items
   const studiosWithIssues = studios.map(studio => ({
     ...studio,
-    defectiveItems: studio.equipment.filter(eq => eq.units.some(u => u.status !== EquipmentStatus.NORMAL))
+    defectiveItems: studio.equipment.filter(eq => 
+      eq.units.some(u => u.status === EquipmentStatus.DAMAGED || u.status === EquipmentStatus.MISSING)
+    )
   })).filter(s => s.defectiveItems.length > 0);
+
+  // Logic: Filter studios that have items Out for Shooting
+  const studiosWithAwayItems = studios.map(studio => ({
+    ...studio,
+    awayItems: studio.equipment.filter(eq => 
+      eq.units.some(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING)
+    )
+  })).filter(s => s.awayItems.length > 0);
 
   const totalIssueCount = studiosWithIssues.reduce((acc, s) => {
     return acc + s.defectiveItems.reduce((eAcc, eq) => {
-      const issues = eq.units.filter(u => u.status !== EquipmentStatus.NORMAL).length;
-      return eAcc + issues;
+      return eAcc + eq.units.filter(u => u.status === EquipmentStatus.DAMAGED || u.status === EquipmentStatus.MISSING).length;
+    }, 0);
+  }, 0);
+
+  const totalAwayCount = studiosWithAwayItems.reduce((acc, s) => {
+    return acc + s.awayItems.reduce((eAcc, eq) => {
+      return eAcc + eq.units.filter(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING).length;
     }, 0);
   }, 0);
 
@@ -58,25 +73,31 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
         <div className="bg-gray-200/50 p-0.5 rounded-lg flex relative mb-3 overflow-hidden">
           <button 
             onClick={() => setActiveTab('pending')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'pending' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+            className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 z-10 ${activeTab === 'pending' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
           >
             待處理 ({totalIssueCount})
           </button>
           <button 
-            onClick={() => setActiveTab('history')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'history' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+            onClick={() => setActiveTab('away')}
+            className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 z-10 ${activeTab === 'away' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
           >
-            已修復 ({history.length})
+            外出 ({totalAwayCount})
+          </button>
+          <button 
+            onClick={() => setActiveTab('history')}
+            className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 z-10 ${activeTab === 'history' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+          >
+            已修復
           </button>
           <button 
             onClick={() => setActiveTab('overview')}
-            className={`flex-1 py-1.5 text-xs font-semibold rounded-md transition-all duration-200 z-10 ${activeTab === 'overview' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
+            className={`flex-1 py-1.5 text-[10px] font-bold rounded-md transition-all duration-200 z-10 ${activeTab === 'overview' ? 'bg-white shadow-sm text-black' : 'text-gray-500'}`}
           >
-            器材總覽
+            總覽
           </button>
         </div>
 
-        {activeTab === 'pending' && totalIssueCount > 0 && (
+        {(activeTab === 'pending' || activeTab === 'away') && (totalIssueCount > 0 || totalAwayCount > 0) && (
           <div className="flex items-center justify-between px-1">
             <span className="text-[10px] font-bold text-gray-400 uppercase">當前負責人員:</span>
             <select 
@@ -111,21 +132,51 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
               <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-4xl shadow-inner">
                 ✨
               </div>
-              <p className="text-lg font-bold text-gray-600">一切正常！</p>
-              <p className="text-xs mt-1">目前所有棚位器材均已歸位並運作正常</p>
+              <p className="text-lg font-bold text-gray-600">目前無故障器材</p>
+              <p className="text-xs mt-1">所有損壞與遺失項目均已處理完成</p>
             </div>
           ) : (
             <div className="space-y-8">
               {studiosWithIssues.map((studio) => (
                 <div key={studio.id} className="space-y-4">
-                  <div className="flex items-center justify-between px-1">
-                    <div className="flex items-center space-x-2">
-                      <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-lg">{studio.icon}</div>
-                      <h2 className="text-lg font-bold text-gray-800">{studio.name}</h2>
-                    </div>
+                  <div className="flex items-center space-x-2 px-1">
+                    <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-lg">{studio.icon}</div>
+                    <h2 className="text-lg font-bold text-gray-800">{studio.name} 異常清單</h2>
                   </div>
                   <div className="space-y-4">
                     {studio.defectiveItems.map((item) => (
+                      <EquipmentRow 
+                        key={item.id} 
+                        item={item} 
+                        onUpdateUnit={(unitIdx, updates) => onUpdateEquipmentUnit(studio.id, item.id, unitIdx, updates, maintenancePersonnel)} 
+                      />
+                    ))}
+                  </div>
+                </div>
+              ))}
+            </div>
+          )
+        )}
+
+        {activeTab === 'away' && (
+          studiosWithAwayItems.length === 0 ? (
+            <div className="flex flex-col items-center justify-center py-20 text-gray-400">
+              <div className="w-20 h-20 bg-gray-100 rounded-full flex items-center justify-center mb-4 text-4xl shadow-inner">
+                🏠
+              </div>
+              <p className="text-lg font-bold text-gray-600">無外出器材</p>
+              <p className="text-xs mt-1">目前所有器材皆存放在所屬棚位中</p>
+            </div>
+          ) : (
+            <div className="space-y-8">
+              {studiosWithAwayItems.map((studio) => (
+                <div key={studio.id} className="space-y-4">
+                  <div className="flex items-center space-x-2 px-1">
+                    <div className="w-8 h-8 rounded-lg bg-white shadow-sm flex items-center justify-center text-lg">{studio.icon}</div>
+                    <h2 className="text-lg font-bold text-gray-800">{studio.name} 外出清單</h2>
+                  </div>
+                  <div className="space-y-4">
+                    {studio.awayItems.map((item) => (
                       <EquipmentRow 
                         key={item.id} 
                         item={item} 
@@ -156,7 +207,9 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                     </div>
                     <span className="text-[9px] px-2 py-0.5 rounded-full bg-green-500 text-white font-black uppercase">Fixed</span>
                   </div>
-                  <h4 className="font-bold text-gray-800">{record.equipmentName} - <span className="text-blue-600">{record.unitIndex} 號機</span></h4>
+                  <h4 className="font-bold text-gray-800">
+                    {record.equipmentName} - <span className="text-blue-600">{record.unitLabel || `${record.unitIndex} 號機`}</span>
+                  </h4>
                   <div className="mt-3 grid grid-cols-3 gap-2">
                     <div className="bg-gray-50 p-2 rounded-xl">
                       <p className="text-[9px] text-gray-400 uppercase font-black">原狀況</p>
@@ -223,8 +276,7 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                               {catItems.map((item, itemIdx) => {
                                 const stats = getStatusSummary(item.units);
                                 const hasError = stats.damaged > 0 || stats.missing > 0 || stats.away > 0;
-                                
-                                // Find if any units have a specific location
+                                const awayLabels = item.units.filter(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING).map(u => u.unitLabel || `${u.unitIndex}#`);
                                 const awayLocations = Array.from(new Set(item.units.filter(u => u.status === EquipmentStatus.OUT_FOR_SHOOTING && u.location).map(u => u.location)));
 
                                 return (
@@ -232,13 +284,14 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                                     <td className="px-4 py-2.5">
                                       <div className="flex flex-col">
                                         <p className="text-xs font-bold text-gray-800 leading-tight">{item.name}</p>
-                                        {awayLocations.length > 0 && (
-                                          <div className="flex flex-wrap gap-1 mt-0.5">
-                                            {awayLocations.map(l => (
-                                              <span key={l} className="text-[8px] text-blue-500 font-bold bg-blue-50 px-1 rounded">@{l}</span>
-                                            ))}
-                                          </div>
-                                        )}
+                                        <div className="flex flex-wrap gap-1 mt-0.5">
+                                          {awayLocations.map(l => (
+                                            <span key={l} className="text-[8px] text-blue-500 font-bold bg-blue-50 px-1 rounded">@{l}</span>
+                                          ))}
+                                          {awayLabels.length > 0 && awayLabels.length < 3 && awayLabels.map(label => (
+                                            <span key={label} className="text-[7px] text-gray-400 bg-gray-100 px-1 rounded">{label}</span>
+                                          ))}
+                                        </div>
                                       </div>
                                     </td>
                                     <td className="px-2 py-2.5 text-center">
@@ -265,11 +318,6 @@ const DefectiveItemsView: React.FC<Props> = ({ studios, history, onBack, onUpdat
                       </div>
                     );
                   })}
-                  {studio.equipment.length === 0 && (
-                    <div className="p-8 text-center text-gray-400 italic text-xs">
-                      暫無器材資料
-                    </div>
-                  )}
                 </div>
               </div>
             ))}
