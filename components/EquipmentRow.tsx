@@ -23,6 +23,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
       case EquipmentStatus.DAMAGED: return 'bg-red-500';
       case EquipmentStatus.MISSING: return 'bg-orange-500';
       case EquipmentStatus.OUT_FOR_SHOOTING: return 'bg-blue-500';
+      case EquipmentStatus.LABEL_REPLACEMENT: return 'bg-indigo-500';
       default: return 'bg-gray-300';
     }
   };
@@ -42,7 +43,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
       const ai = new GoogleGenAI({ apiKey: process.env.API_KEY });
       const response = await ai.models.generateContent({
         model: 'gemini-3-flash-preview',
-        contents: `You are an equipment manager for a professional film studio. Suggest a concise, professional remark in Chinese (traditional) for a piece of equipment named '${item.name}' which is currently in '${activeUnit.status}' status. The remark should be brief and suitable for a maintenance log. If the status is '正常' (Normal), suggest something like '檢查完畢，狀態良好'.`,
+        contents: `You are an equipment manager for a professional film studio. Suggest a concise, professional remark in Chinese (traditional) for a piece of equipment named '${item.name}' which is currently in '${activeUnit.status}' status.`,
       });
       const text = response.text;
       if (text) {
@@ -50,7 +51,7 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
         onUpdateUnit(activeUnit.unitIndex, { remark: cleanedText });
       }
     } catch (e) {
-      console.error('Gemini AI Remark Suggestion Error:', e);
+      console.error('AI Remark Error:', e);
     } finally {
       setIsAiLoading(false);
     }
@@ -65,9 +66,9 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
         <div className="flex-1">
           <div className="flex items-center space-x-2">
             <h4 className="font-bold text-gray-900">{item.name}</h4>
-            {activeUnit.status === EquipmentStatus.OUT_FOR_SHOOTING && activeUnit.location && (
-              <span className="text-[9px] bg-blue-50 text-blue-600 px-1.5 py-0.5 rounded-md border border-blue-100 font-bold">
-                @{activeUnit.location}
+            {activeUnit.status === EquipmentStatus.LABEL_REPLACEMENT && (
+              <span className="text-[9px] bg-indigo-50 text-indigo-600 px-1.5 py-0.5 rounded-md border border-indigo-100 font-black">
+                🏷️ 需換標
               </span>
             )}
             {isAllChecked && (
@@ -92,17 +93,14 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
               <div key={u.id} className={`w-2.5 h-2.5 rounded-full border-2 border-white shadow-sm ${u.lastChecked ? getStatusColor(u.status) : 'bg-gray-200'}`} />
             ))}
           </div>
-          <svg 
-            className={`w-5 h-5 text-gray-300 transition-transform duration-300 ${isExpanded ? 'rotate-180' : ''}`} 
-            fill="none" stroke="currentColor" viewBox="0 0 24 24"
-          >
+          <svg className={`w-5 h-5 text-gray-300 transition-transform ${isExpanded ? 'rotate-180' : ''}`} fill="none" stroke="currentColor" viewBox="0 0 24 24">
             <path strokeLinecap="round" strokeLinejoin="round" strokeWidth={2} d="M19 9l-7 7-7-7" />
           </svg>
         </div>
       </div>
 
       {isExpanded && (
-        <div className="px-4 pb-4 bg-gray-50/30 border-t border-gray-50 animate-in slide-in-from-top-2">
+        <div className="px-4 pb-4 bg-gray-50/30 border-t border-gray-50">
           {item.quantity > 1 && (
             <div className="my-4 overflow-x-auto no-scrollbar">
               <div className="flex p-1 bg-gray-200/50 rounded-xl space-x-1 min-w-max">
@@ -111,19 +109,11 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
                     key={unit.id}
                     onClick={() => setActiveUnitIndex(idx)}
                     className={`relative py-2 px-3 text-xs font-bold rounded-lg transition-all ${
-                      activeUnitIndex === idx 
-                        ? 'bg-white text-blue-600 shadow-sm border border-blue-50' 
-                        : 'text-gray-500 hover:text-gray-700'
+                      activeUnitIndex === idx ? 'bg-white text-blue-600 shadow-sm border border-blue-50' : 'text-gray-500'
                     }`}
                   >
-                    {unit.unitLabel ? (
-                      <span className="text-blue-700 font-black">{unit.unitLabel}</span>
-                    ) : (
-                      `${unit.unitIndex} 號機`
-                    )}
-                    {unit.lastChecked && (
-                      <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${getStatusColor(unit.status)} shadow-sm`} />
-                    )}
+                    {unit.unitLabel || `${unit.unitIndex} 號機`}
+                    {unit.lastChecked && <div className={`absolute top-1 right-1 w-1.5 h-1.5 rounded-full ${getStatusColor(unit.status)}`} />}
                   </button>
                 ))}
               </div>
@@ -133,103 +123,61 @@ const EquipmentRow: React.FC<Props> = ({ item, onUpdateUnit }) => {
           <div className="space-y-4 pt-2">
             <div className="flex justify-between items-center px-1">
               <span className="text-[10px] font-black text-gray-400 uppercase">
-                當前機台: <span className="text-blue-600 font-black">{activeUnit.unitLabel || `${activeUnit.unitIndex} 號機`}</span>
+                當前: <span className="text-blue-600">{activeUnit.unitLabel || `${activeUnit.unitIndex}#`}</span>
               </span>
-              {activeUnit.lastChecked && (
-                <span className="text-[9px] text-gray-400 font-bold">清點人: {activeUnit.lastCheckedBy}</span>
-              )}
             </div>
 
             <div className="space-y-3">
               <div>
-                <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">器材狀況</label>
+                <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">設定狀況</label>
                 <div className="grid grid-cols-2 gap-2">
                   {Object.values(EquipmentStatus).map(status => (
                     <button
                       key={status}
                       onClick={() => handleStatusUpdate(status)}
-                      className={`py-2.5 px-1 rounded-xl text-xs font-bold ios-tap transition-all border-2 ${
+                      className={`py-2.5 rounded-xl text-xs font-bold transition-all border-2 ${
                         activeUnit.status === status 
-                          ? 'bg-blue-600 text-white border-blue-600 shadow-lg shadow-blue-100' 
+                          ? `${status === EquipmentStatus.LABEL_REPLACEMENT ? 'bg-indigo-600 border-indigo-600' : 'bg-blue-600 border-blue-600'} text-white shadow-md` 
                           : 'bg-white border-gray-100 text-gray-600'
                       }`}
                     >
-                      {status}
+                      {status === EquipmentStatus.LABEL_REPLACEMENT ? '🏷️ ' + status : status}
                     </button>
                   ))}
                 </div>
               </div>
 
-              {activeUnit.status === EquipmentStatus.OUT_FOR_SHOOTING && (
-                <div className="bg-blue-50/50 p-3 rounded-2xl border border-blue-100/50 animate-in zoom-in-95 duration-200">
-                  <label className="block text-[9px] font-black text-blue-400 uppercase mb-2 px-1">拍攝地點確認</label>
-                  <div className="grid grid-cols-2 gap-2">
-                    {['佈道學院', '學餐名家'].map(loc => (
-                      <button
-                        key={loc}
-                        onClick={() => onUpdateUnit(activeUnit.unitIndex, { location: loc })}
-                        className={`py-2 px-2 rounded-xl text-[11px] font-bold transition-all border ${
-                          activeUnit.location === loc 
-                            ? 'bg-blue-100 border-blue-300 text-blue-700 shadow-sm' 
-                            : 'bg-white border-blue-50 text-blue-400 active:bg-blue-50'
-                        }`}
-                      >
-                        {loc}
-                      </button>
-                    ))}
+              {activeUnit.status === EquipmentStatus.LABEL_REPLACEMENT && (
+                <div className="bg-indigo-50 p-3 rounded-2xl border border-indigo-200 animate-in zoom-in-95">
+                  <div className="flex justify-between items-center mb-2">
+                    <label className="text-[10px] font-black text-indigo-600 uppercase">🏷️ 標籤更換備註</label>
+                    <span className="text-[8px] bg-white text-indigo-400 px-1.5 rounded-full border border-indigo-100">必填細節</span>
                   </div>
+                  <textarea
+                    className="w-full bg-white border border-indigo-100 rounded-xl p-3 text-sm resize-none h-20 shadow-inner focus:border-indigo-400"
+                    placeholder="請輸入：需更換的原因或新標籤編號..."
+                    value={activeUnit.remark}
+                    onChange={(e) => onUpdateUnit(activeUnit.unitIndex, { remark: e.target.value })}
+                  />
                 </div>
               )}
 
-              <div className="grid grid-cols-2 gap-4">
+              {activeUnit.status !== EquipmentStatus.LABEL_REPLACEMENT && (
                 <div>
-                  <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">標籤狀態</label>
-                  <div className="flex p-0.5 bg-gray-100 rounded-xl">
-                    {Object.values(LabelStatus).map(lStatus => (
-                      <button
-                        key={lStatus}
-                        onClick={() => onUpdateUnit(activeUnit.unitIndex, { labelStatus: lStatus })}
-                        className={`flex-1 py-2 text-[10px] font-bold rounded-lg transition-all ${
-                          activeUnit.labelStatus === lStatus 
-                            ? 'bg-white text-indigo-600 shadow-sm' 
-                            : 'text-gray-400'
-                        }`}
-                      >
-                        {lStatus}
-                      </button>
-                    ))}
+                  <div className="flex justify-between items-center mb-2 px-1">
+                    <label className="text-[9px] font-black text-gray-400 uppercase">狀態備註</label>
+                    <button onClick={handleAISuggestRemark} disabled={isAiLoading} className="text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100">
+                      {isAiLoading ? '...' : '✨ AI 建議'}
+                    </button>
                   </div>
+                  <textarea
+                    className="w-full bg-white border border-gray-100 rounded-xl p-3 text-sm resize-none h-20 focus:border-blue-300"
+                    placeholder="輸入備註..."
+                    value={activeUnit.remark}
+                    onChange={(e) => onUpdateUnit(activeUnit.unitIndex, { remark: e.target.value })}
+                  />
                 </div>
-                <div>
-                   <label className="block text-[9px] font-black text-gray-400 uppercase mb-2 px-1">快速切換</label>
-                   <button 
-                    disabled={activeUnitIndex === item.units.length - 1}
-                    onClick={() => setActiveUnitIndex(activeUnitIndex + 1)}
-                    className="w-full py-2 bg-gray-100 rounded-xl text-[10px] font-bold text-gray-500 disabled:opacity-30 ios-tap"
-                   >
-                     下一台 →
-                   </button>
-                </div>
-              </div>
-
-              <div>
-                <div className="flex justify-between items-center mb-2 px-1">
-                  <label className="block text-[9px] font-black text-gray-400 uppercase">狀態備註</label>
-                  <button 
-                    onClick={handleAISuggestRemark}
-                    disabled={isAiLoading}
-                    className={`text-[9px] font-bold text-blue-500 bg-blue-50 px-2 py-0.5 rounded-full border border-blue-100 ios-tap ${isAiLoading ? 'opacity-50 animate-pulse' : ''}`}
-                  >
-                    {isAiLoading ? '生成中...' : '✨ AI 建議'}
-                  </button>
-                </div>
-                <textarea
-                  className="w-full bg-white border border-gray-100 rounded-xl p-3 text-sm resize-none h-20 shadow-sm focus:border-blue-300 transition-colors"
-                  placeholder="輸入此機台的特殊狀況..."
-                  value={activeUnit.remark}
-                  onChange={(e) => onUpdateUnit(activeUnit.unitIndex, { remark: e.target.value })}
-                />
-              </div>
+              )}
             </div>
           </div>
         </div>

@@ -1,4 +1,3 @@
-// Fix: Ensure modular initializeApp is imported correctly from the firebase/app entry point
 import { initializeApp } from 'firebase/app';
 import { getFirestore } from 'firebase/firestore';
 
@@ -12,8 +11,39 @@ const firebaseConfig = {
   measurementId: "G-BC73PMRJYE"
 };
 
-// Initialize the Firebase app instance
 const app = initializeApp(firebaseConfig);
-
-// Export the Firestore database instance
 export const db = getFirestore(app);
+
+/**
+ * 【通用資料清潔函式】
+ * 遞迴清除 undefined，轉換 Date，並捕捉錯誤欄位。
+ */
+export const sanitizeData = (data: any, path: string = 'root'): any => {
+  try {
+    if (data === undefined) return null;
+    if (data === null) return null;
+
+    if (data instanceof Date) {
+      return data.toISOString();
+    }
+
+    if (Array.isArray(data)) {
+      return data.map((item, index) => sanitizeData(item, `${path}[${index}]`));
+    }
+
+    if (typeof data === 'object') {
+      const sanitized: any = {};
+      for (const key in data) {
+        if (Object.prototype.hasOwnProperty.call(data, key)) {
+          sanitized[key] = sanitizeData(data[key], `${path}.${key}`);
+        }
+      }
+      return sanitized;
+    }
+
+    return data;
+  } catch (error) {
+    console.error(`[Sanitize Error] 異常欄位路徑: ${path}`);
+    throw error;
+  }
+};

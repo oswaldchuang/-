@@ -3,7 +3,8 @@ export enum EquipmentStatus {
   NORMAL = '正常',
   DAMAGED = '損壞',
   MISSING = '遺失',
-  OUT_FOR_SHOOTING = '外出拍攝'
+  OUT_FOR_SHOOTING = '外出拍攝',
+  LABEL_REPLACEMENT = '標籤更換'
 }
 
 export enum LabelStatus {
@@ -11,7 +12,7 @@ export enum LabelStatus {
   UNLABELED = '未貼'
 }
 
-export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收音組' | '線材電池組' | '圖傳Monitor';
+export type EquipmentCategory = '相機組' | '腳架組' | '燈光組' | '收音組' | '線材電池組' | '圖傳Monitor' | '記憶卡';
 
 export interface EquipmentUnit {
   id: string; // e.g., "cam-1-unit-1"

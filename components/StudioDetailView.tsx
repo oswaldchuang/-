@@ -47,6 +47,7 @@ const StudioDetailView: React.FC<Props> = ({
     { name: '燈光組', icon: '💡', color: 'bg-yellow-500' },
     { name: '收音組', icon: '🎙️', color: 'bg-purple-500' },
     { name: '線材電池組', icon: '🔌🔋', color: 'bg-gray-600' },
+    { name: '記憶卡', icon: '💾', color: 'bg-red-600' },
   ];
 
   const getCategoryStats = (categoryName: EquipmentCategory) => {

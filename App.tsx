@@ -4,7 +4,7 @@ import { INITIAL_STUDIOS, PERSONNEL_LIST, generateEquipmentList } from './consta
 import DashboardView from './components/DashboardView';
 import StudioDetailView from './components/StudioDetailView';
 import DefectiveItemsView from './components/DefectiveItemsView';
-import { db } from './firebase';
+import { db, sanitizeData } from './firebase';
 import { 
   collection, 
   onSnapshot, 
@@ -13,26 +13,9 @@ import {
   addDoc, 
   query, 
   orderBy, 
-  deleteDoc,
-  writeBatch
+  writeBatch,
+  deleteDoc
 } from 'firebase/firestore';
-
-/**
- * 終極資料淨化函式
- * 遞歸刪除所有 undefined 和 null，確保 Firebase 接受資料
- */
-const cleanData = (data: any): any => {
-  if (Array.isArray(data)) {
-    return data.map(v => cleanData(v)).filter(v => v !== undefined);
-  } else if (data !== null && typeof data === 'object') {
-    return Object.fromEntries(
-      Object.entries(data)
-        .filter(([_, v]) => v !== undefined && v !== null)
-        .map(([k, v]) => [k, cleanData(v)])
-    );
-  }
-  return data;
-};
 
 const App: React.FC = () => {
   const [studios, setStudios] = useState<Studio[]>([]);
@@ -42,23 +25,32 @@ const App: React.FC = () => {
   const [selectedStudioId, setSelectedStudioId] = useState<string | null>(null);
   const [isLoading, setIsLoading] = useState(true);
   const [syncStatus, setSyncStatus] = useState<string>('');
+  
+  // 自定義 UI 狀態
+  const [toast, setToast] = useState<{ message: string; type: 'success' | 'error' | 'info' } | null>(null);
+  const [confirmModal, setConfirmModal] = useState<{ message: string; onConfirm: () => void } | null>(null);
 
+  const showToast = (message: string, type: 'success' | 'error' | 'info' = 'info') => {
+    setToast({ message, type });
+    setTimeout(() => setToast(null), 3000);
+  };
+
+  // 監聽器材資料：移除深層比對邏輯，防止 Circular Reference 報錯
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'equipments'), (snapshot) => {
-      if (snapshot.empty) {
-        seedInitialData();
-      } else {
-        const studioData = snapshot.docs.map(doc => doc.data() as Studio);
-        const sorted = [...studioData].sort((a, b) => a.id.localeCompare(b.id));
-        setStudios(sorted);
-        setIsLoading(false);
-      }
+      const studioData = snapshot.docs.map(doc => ({ ...doc.data(), id: doc.id } as Studio));
+      // 僅排序，不進行 JSON Stringify 比對
+      const sorted = [...studioData].sort((a, b) => a.id.localeCompare(b.id));
+      setStudios(sorted);
+      setIsLoading(false);
     }, (error) => {
       console.error("Firestore Listen Error:", error);
+      setIsLoading(false);
     });
     return () => unsubscribe();
   }, []);
 
+  // 監聽維修歷史
   useEffect(() => {
     const q = query(collection(db, 'history'), orderBy('fixedAt', 'desc'));
     const unsubscribe = onSnapshot(q, (snapshot) => {
@@ -68,43 +60,14 @@ const App: React.FC = () => {
     return () => unsubscribe();
   }, []);
 
+  // 監聽人員名單
   useEffect(() => {
     const unsubscribe = onSnapshot(collection(db, 'personnel'), (snapshot) => {
-      if (!snapshot.empty || !isLoading) {
-        const names = snapshot.docs.map(doc => doc.data().name as string);
-        setPersonnel(names);
-      } else if (snapshot.empty && !isLoading) {
-        seedInitialPersonnel();
-      }
+      const names = snapshot.docs.map(doc => doc.data().name as string);
+      setPersonnel(names);
     });
     return () => unsubscribe();
-  }, [isLoading]);
-
-  const seedInitialData = async () => {
-    try {
-      const batch = writeBatch(db);
-      INITIAL_STUDIOS.forEach((studio) => {
-        const studioRef = doc(db, 'equipments', studio.id);
-        batch.set(studioRef, cleanData(studio));
-      });
-      await batch.commit();
-    } catch (e) {
-      console.error("Seed Data Error:", e);
-    }
-  };
-
-  const seedInitialPersonnel = async () => {
-    try {
-      const batch = writeBatch(db);
-      PERSONNEL_LIST.forEach((name) => {
-        const pRef = doc(db, 'personnel', name);
-        batch.set(pRef, { name });
-      });
-      await batch.commit();
-    } catch (e) {
-      console.error("Seed Personnel Error:", e);
-    }
-  };
+  }, []);
 
   const handleSelectStudio = (id: string) => {
     setSelectedStudioId(id);
@@ -120,95 +83,101 @@ const App: React.FC = () => {
     setSelectedStudioId(null);
   };
 
-  /**
-   * 強化版一鍵同步 (極致 Debug)
-   * 增加 Try-Catch, Loading 鎖定, 與資料深度淨化
-   */
-  const handleSyncAllStudios = async () => {
-    const confirmMsg = "【強制更新確認】\n這將把「公共區 14 項器材」強行寫入雲端資料庫。\n同步期間請勿關閉視窗，完成後請重新整理網頁。是否繼續？";
-    if (!window.confirm(confirmMsg)) return;
-    
+  // 一鍵同步邏輯 (僅由按鈕點擊觸發)
+  const performSyncAction = async () => {
+    setConfirmModal(null);
     setIsLoading(true);
-    setSyncStatus('正在啟動 Debug 同步引擎...');
+    setSyncStatus('正在同步器材標籤...');
 
     try {
       const batch = writeBatch(db);
-      const syncToken = `FORCE_SYNC_${Date.now()}`;
-      console.log("🚀 開始同步任務 | Token:", syncToken);
-
-      // 遍歷 INITIAL_STUDIOS，這是我們的結構準則
+      const timestamp = new Date().toISOString();
+      
       for (const targetDef of INITIAL_STUDIOS) {
-        setSyncStatus(`正在整理: ${targetDef.name} 器材清單...`);
-        
-        const existingData = studios.find(s => s.id === targetDef.id);
         const studioNum = targetDef.id === 'studio-public' ? 0 : parseInt(targetDef.id.replace('studio-', ''));
         const prefix = targetDef.id === 'studio-public' ? 'sp' : `s${studioNum}`;
-        
-        // 取得代碼中最新定義的器材結構
         const freshList = generateEquipmentList(prefix, studioNum);
         
-        const mergedEquipment = freshList.map(freshItem => {
-          // 嘗試在資料庫尋找匹配的項目 (按名稱或 ID)
-          const oldItem = existingData?.equipment.find(e => 
-            e.name === freshItem.name || e.id === freshItem.id
-          );
-
-          if (oldItem) {
-            // 合併現有的「故障/遺失」等狀態
-            const mergedUnits = freshItem.units.map((freshUnit, idx) => {
-              const oldUnit = oldItem.units[idx];
-              return {
-                ...freshUnit, 
-                status: oldUnit?.status || EquipmentStatus.NORMAL,
-                remark: oldUnit?.remark || "",
-                lastChecked: oldUnit?.lastChecked || undefined,
-                lastCheckedBy: oldUnit?.lastCheckedBy || undefined,
-                location: oldUnit?.location || undefined,
-                labelStatus: freshUnit.unitLabel ? LabelStatus.LABELED : (oldUnit?.labelStatus || LabelStatus.UNLABELED)
-              };
-            });
-            return { ...freshItem, units: mergedUnits };
-          }
-          // 如果是全新項目 (例如新增的 14 項電池)，直接使用 freshItem
-          return freshItem;
-        });
+        const existingStudio = studios.find(s => s.id === targetDef.id);
+        
+        let finalEquipment;
+        if (targetDef.id === 'studio-public') {
+          finalEquipment = freshList;
+        } else {
+          finalEquipment = freshList.map(freshItem => {
+            const oldItem = existingStudio?.equipment.find(e => e.name === freshItem.name);
+            if (oldItem) {
+              const mergedUnits = freshItem.units.map((freshUnit, idx) => {
+                const oldUnit = oldItem.units[idx];
+                return {
+                  ...freshUnit,
+                  status: oldUnit?.status || EquipmentStatus.NORMAL,
+                  remark: oldUnit?.remark || "",
+                  lastChecked: oldUnit?.lastChecked || null,
+                  lastCheckedBy: oldUnit?.lastCheckedBy || null,
+                };
+              });
+              return { ...freshItem, units: mergedUnits };
+            }
+            return freshItem;
+          });
+        }
 
         const studioRef = doc(db, 'equipments', targetDef.id);
-        const finalPayload = cleanData({
+        const rawPayload = {
           ...targetDef,
-          equipment: mergedEquipment,
-          lastSync: new Date().toISOString(),
-          _debugToken: syncToken
-        });
+          equipment: finalEquipment,
+          lastSync: timestamp
+        };
 
-        console.log(`📝 準備寫入棚位: ${targetDef.name}`, finalPayload);
-        batch.set(studioRef, finalPayload);
+        batch.set(studioRef, sanitizeData(rawPayload, targetDef.id));
       }
 
-      setSyncStatus('正在將資料提交至雲端...');
       await batch.commit();
-      
-      console.log("✅ 雲端寫入成功！");
-      alert("✅ 同步成功！\n\n公共區 14 項電池設備已全數掛載完畢。\n若畫面未出現，請【重新整理】網頁以清除快取。");
+      showToast("✅ 器材標籤同步成功！", "success");
     } catch (error: any) {
-      console.error("🔥 同步發生致命錯誤:", error);
-      alert(`❌ 更新失敗！\n錯誤代碼: ${error.code || '未知'}\n錯誤訊息: ${error.message}\n\n請截圖控制台錯誤訊息並回報。`);
+      console.error('❌ 同步失敗:', error);
+      showToast(`❌ 同步失敗: ${error.message}`, "error");
     } finally {
       setIsLoading(false);
       setSyncStatus('');
     }
   };
 
+  const handleSyncAllStudios = () => {
+    setConfirmModal({
+      message: "確定要同步器材標籤嗎？這將重新整理所有棚位的編號與清單，並保留現有的維護狀態。",
+      onConfirm: performSyncAction
+    });
+  };
+
   const handleAddPersonnel = async (name: string) => {
     if (name && !personnel.includes(name)) {
-      await setDoc(doc(db, 'personnel', name), { name });
+      try {
+        await setDoc(doc(db, 'personnel', name), sanitizeData({ name }));
+        showToast(`已新增成員: ${name}`, "success");
+      } catch (e) {
+        showToast("新增失敗", "error");
+      }
     }
   };
 
   const handleDeletePersonnel = async (name: string) => {
-    await deleteDoc(doc(db, 'personnel', name));
+    setConfirmModal({
+      message: `確定要刪除成員 ${name} 嗎？`,
+      onConfirm: async () => {
+        setConfirmModal(null);
+        try {
+          await deleteDoc(doc(db, 'personnel', name));
+          showToast(`已刪除成員: ${name}`, "info");
+        } catch (e) {
+          showToast("刪除失敗", "error");
+        }
+      }
+    });
   };
 
+  // 單機台更新邏輯
   const updateEquipmentUnit = async (studioId: string, equipmentId: string, unitIndex: number, updates: Partial<EquipmentUnit>, personnelName?: string) => {
     const studio = studios.find(s => s.id === studioId);
     if (!studio) return;
@@ -219,8 +188,9 @@ const App: React.FC = () => {
       if (item.id === equipmentId) {
         const updatedUnits = item.units.map(unit => {
           if (unit.unitIndex === unitIndex) {
+            // 如果從異常恢復正常，寫入歷史紀錄
             if (updates.status === EquipmentStatus.NORMAL && unit.status !== EquipmentStatus.NORMAL) {
-              const newRecord: Omit<HistoryRecord, 'id'> = {
+              const newRecord = sanitizeData({
                 equipmentId: item.id,
                 unitIndex: unit.unitIndex,
                 unitLabel: unit.unitLabel || "",
@@ -231,8 +201,8 @@ const App: React.FC = () => {
                 fixedBy: personnelName || '未知人員',
                 previousStatus: unit.status,
                 remark: updates.remark || unit.remark || '無備註'
-              };
-              addDoc(collection(db, 'history'), cleanData(newRecord));
+              });
+              addDoc(collection(db, 'history'), newRecord);
             }
             return { 
               ...unit, 
@@ -248,13 +218,19 @@ const App: React.FC = () => {
       return item;
     });
 
-    await setDoc(studioRef, cleanData({ ...studio, equipment: updatedEquipment }));
+    try {
+      // 寫入前強制執行 sanitizeData 以防 undefined 造成的錯誤
+      await setDoc(studioRef, sanitizeData({ ...studio, equipment: updatedEquipment }));
+    } catch (e: any) {
+      console.error("更新機台失敗:", e);
+      showToast(`更新失敗: ${e.message}`, "error");
+    }
   };
 
   const selectedStudio = studios.find(s => s.id === selectedStudioId);
 
   return (
-    <div className="min-h-screen max-w-md mx-auto relative flex flex-col shadow-2xl bg-white">
+    <div className="min-h-screen max-w-md mx-auto relative flex flex-col shadow-2xl bg-white overflow-hidden">
       {currentView === 'dashboard' && (
         <DashboardView 
           studios={studios} 
@@ -286,17 +262,50 @@ const App: React.FC = () => {
         />
       )}
 
-      {isLoading && (
-        <div className="fixed inset-0 bg-black/70 backdrop-blur-2xl flex items-center justify-center z-[300] animate-in fade-in duration-300">
-          <div className="bg-white p-12 rounded-[3.5rem] shadow-[0_40px_80px_-15px_rgba(0,0,0,0.6)] flex flex-col items-center max-w-[85%] border border-white/30">
-            <div className="relative w-24 h-24 mb-10">
-              <div className="absolute inset-0 border-[8px] border-blue-50 rounded-full"></div>
-              <div className="absolute inset-0 border-[8px] border-blue-600 border-t-transparent rounded-full animate-spin"></div>
+      {/* Toast 通知系統 */}
+      {toast && (
+        <div className="fixed top-12 left-1/2 -translate-x-1/2 z-[1000] animate-in slide-in-from-top-4 duration-300">
+          <div className={`px-6 py-3 rounded-full shadow-2xl backdrop-blur-md flex items-center space-x-2 border ${
+            toast.type === 'success' ? 'bg-green-500/90 border-green-400' : 
+            toast.type === 'error' ? 'bg-red-500/90 border-red-400' : 'bg-gray-800/90 border-gray-700'
+          }`}>
+            <span className="text-white text-sm font-bold">{toast.message}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 自定義確認彈窗 (取代原生 confirm) */}
+      {confirmModal && (
+        <div className="fixed inset-0 z-[1100] flex items-center justify-center p-6 bg-black/40 backdrop-blur-sm animate-in fade-in duration-200">
+          <div className="bg-white rounded-[2rem] w-full max-w-xs overflow-hidden shadow-2xl animate-in zoom-in-95 duration-200">
+            <div className="p-8 text-center">
+              <h3 className="text-lg font-bold text-gray-900 mb-2">確認動作</h3>
+              <p className="text-sm text-gray-500 leading-relaxed">{confirmModal.message}</p>
             </div>
-            <h3 className="text-2xl font-black text-gray-900 text-center mb-4 tracking-tighter">系統強制同步中</h3>
-            <p className="text-sm text-gray-400 text-center px-6 leading-relaxed font-medium animate-pulse">
-              {syncStatus || '正在向雲端寫入 14 項電池設備，請稍候...'}
-            </p>
+            <div className="flex border-t border-gray-100">
+              <button 
+                onClick={() => setConfirmModal(null)}
+                className="flex-1 py-4 text-blue-500 font-medium active:bg-gray-50 transition-colors"
+              >
+                取消
+              </button>
+              <button 
+                onClick={confirmModal.onConfirm}
+                className="flex-1 py-4 text-red-500 font-bold border-l border-gray-100 active:bg-gray-50 transition-colors"
+              >
+                確定
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
+      {/* 全域 Loading 狀態 */}
+      {isLoading && (
+        <div className="fixed inset-0 bg-black/60 backdrop-blur-md flex items-center justify-center z-[999]">
+          <div className="bg-white/90 p-10 rounded-[3rem] shadow-2xl flex flex-col items-center">
+            <div className="w-12 h-12 border-4 border-blue-100 border-t-blue-600 rounded-full animate-spin mb-4"></div>
+            <p className="text-sm font-bold text-gray-800">{syncStatus || '系統讀取中...'}</p>
           </div>
         </div>
       )}
